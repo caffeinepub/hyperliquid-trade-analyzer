@@ -1,0 +1,66 @@
+{
+  "kind": "build_request",
+  "title": "Slow down orderbook triangle size changes in cluster heatmap mode",
+  "priority": "normal",
+  "requirements": [
+    {
+      "id": "REQ-12",
+      "text": "Make the Orderbook Heatmap (cluster/triangle mode) change size more slowly by slowing the transition animation between snapshots and aligning the transition duration with the selected Update Interval (so triangles grow/shrink gradually instead of jumping every ~1s).",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-4"
+        ],
+        "quotes": [
+          "kannst du den Zeitintervall noch ändern, sodaß die dreiecke sich nicht im Sekundentakt ändern sondern langsamer grösser oder kleiner werden."
+        ]
+      },
+      "acceptanceCriteria": [
+        "When Rendering Mode is set to \"Cluster\", triangle shape/size changes are visibly smoother and slower (no rapid per-second \"jumping\") at the default settings.",
+        "Transition/animation duration used by the canvas is derived from the currently selected Update Interval (e.g., a large fraction of the interval) and updates immediately when the interval changes.",
+        "The polling behavior (snapshot fetch cadence) continues to follow the selected Update Interval; only the visual transition speed is adjusted."
+      ]
+    },
+    {
+      "id": "REQ-13",
+      "text": "Extend the Update Interval control in the Orderbook Heatmap view with slower options suitable for gradual triangle changes (e.g., add 10s and 15s), and choose a slower default interval so the first experience is not \"per-second\" updates.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-4"
+        ],
+        "quotes": [
+          "...nicht im Sekundentakt ändern sondern langsamer grösser oder kleiner werden."
+        ]
+      },
+      "acceptanceCriteria": [
+        "The Update Interval dropdown includes additional slow options beyond the current 1s/2s/5s (at minimum: 10s and 15s).",
+        "The default Update Interval value in `frontend/src/components/OrderbookHeatmapView.tsx` is set to a slower setting (>= 5s).",
+        "All user-facing labels for these options are in English (consistent with the current control labels)."
+      ]
+    }
+  ],
+  "constraints": [
+    "Do not edit any files under `frontend/src/components/ui` or other paths listed in `frontend.immutablePaths`.",
+    "Keep the backend architecture unchanged (single Motoko actor); no backend changes are required for this request."
+  ],
+  "nonGoals": [
+    "Do not change the Hyperliquid API polling endpoint or payload shape.",
+    "Do not redesign the heatmap rendering modes (Bars vs Cluster) beyond slowing the perceived change speed.",
+    "Do not add real-time streaming/WebSocket updates."
+  ],
+  "imageRequirements": {
+    "required": [],
+    "edits": []
+  },
+  "userProfileUpdate": {
+    "goalsToAdd": [],
+    "goalsToRemove": [],
+    "preferencesToAdd": [],
+    "preferencesToRemove": [],
+    "miscToAdd": [],
+    "miscToRemove": [],
+    "fieldsToSet": {},
+    "fieldsToDelete": []
+  }
+}

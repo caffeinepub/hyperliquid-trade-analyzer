@@ -1,0 +1,51 @@
+{
+  "kind": "coverage_report",
+  "version": "1.0",
+  "generatedAt": "2026-02-09T19:54:27.602Z",
+  "sources": {
+    "buildRequest": true,
+    "implementationPlan": true
+  },
+  "requirements": {
+    "total": 2,
+    "implemented": 2,
+    "items": [
+      {
+        "id": "REQ-12",
+        "summary": "Make the Orderbook Heatmap (cluster/triangle mode) change size more slowly by slowing the transition animation between snapshots and aligning the transition duration with the selected Update Interval (so triangles grow/shrink gradually instead of jumping every ~1s).",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/components/orderbook/OrderbookHeatmapCanvas.tsx",
+          "frontend/src/components/OrderbookHeatmapView.tsx"
+        ],
+        "matchedFiles": [
+          "frontend/src/components/orderbook/OrderbookHeatmapCanvas.tsx",
+          "frontend/src/components/OrderbookHeatmapView.tsx"
+        ]
+      },
+      {
+        "id": "REQ-13",
+        "summary": "Extend the Update Interval control in the Orderbook Heatmap view with slower options suitable for gradual triangle changes (e.g., add 10s and 15s), and choose a slower default interval so the first experience is not \"per-second\" updates.",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/components/OrderbookHeatmapView.tsx"
+        ],
+        "matchedFiles": [
+          "frontend/src/components/OrderbookHeatmapView.tsx"
+        ]
+      }
+    ]
+  },
+  "changedFiles": [
+    "build-request.json",
+    "feature_evidence.json",
+    "frontend-file-summaries.txt",
+    "frontend-implementation-plan.json",
+    "frontend/src/components/OrderbookHeatmapView.tsx",
+    "frontend/src/components/orderbook/OrderbookHeatmapCanvas.tsx",
+    "project_state.json",
+    "scratch/component-selection.json",
+    "spec.md",
+    "spec_vs_diff_report.json"
+  ]
+}

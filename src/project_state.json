@@ -1,0 +1,459 @@
+{
+  "schemaVersion": "1.0.0",
+  "projectStateVersion": 14,
+  "summary": "Hyperliquid Trade Analyzer is a React + TypeScript web app (German UI) for uploading and analyzing Hyperliquid (and similar) trading CSV exports. It parses diverse CSV formats (German/English headers, delimiter and number-format detection, headerless inference), computes per-trade metrics (PnL, liquidation flags, risk level, leverage from available fields, fees, asset category), and presents an interactive dashboard with asset filtering, summary KPIs, charts (PnL, distributions), detailed sortable/collapsible position tables, and an extensive fee analysis/optimization section. Results can be exported back to CSV. An Internet Computer (Motoko) backend canister exists to store analysis sessions (including the uploaded CSV as a blob) and serve session/asset-stat queries; additional modules provide Caffeine blob-storage mixin endpoints and HTTP outcall helpers.",
+  "architectural_notes": [
+    "Frontend built with React (function components) + TypeScript, TailwindCSS (OKLCH theme tokens) and shadcn/ui primitives.",
+    "Client-side analytics: CSV parsing and most computations happen in the browser; backend is used as optional persistence/query layer for sessions and precomputed stats.",
+    "Data fetching/state: @tanstack/react-query is used for actor instantiation and backend queries/mutations with cache invalidation.",
+    "Authentication: Internet Identity integration via @dfinity/auth-client wrapped in a React context provider; actor creation binds identity when available.",
+    "Backend: Motoko canister that holds sessions in an in-memory Map keyed by sessionId, exposing query and update methods for session management and stats retrieval.",
+    "Caffeine integrations: blob-storage mixin endpoints for gateway authorization/dead-blob pruning/certificate creation and an HTTP outcall helper module with response header stripping transform.",
+    "Visualization: Recharts for bar and pie charts; UI emphasizes category-specific styling (metals/stablecoins) and direction coloring (long/short).",
+    "Repository now includes a build-template scaffold (Dockerfile, deploy scripts, ICP canister YAMLs, frontend starter with shadcn/ui, and asset/image maintenance scripts) for reproducible builds and deployments.",
+    "Backend infrastructure components were updated/realigned (blob-storage mixin and http-outcalls modules) to tracked component versions.",
+    "Heatmap-Rendering: Animation/Transition-Tempo (z.B. Interpolation-Dauer) sollte konfigurierbar sein und idealerweise vom Polling-/Snapshot-Intervall getrennt werden."
+  ],
+  "known_issues": [
+    "Inconsistent PnL basis across UI: utils.calculateAssetStats uses realizedPnl only, while other UI elements use realized+unrealized for totals; charts mix realized-only and total PnL, which may confuse users.",
+    "Backend session storage is in-memory (non-stable); sessions will be lost on canister upgrade and may grow unbounded in memory over time.",
+    "Backend lacks access control for session operations: storeAnalysisSession, getSession, getAllSessions, getUserSessions, and deleteSession do not validate caller authorization/ownership; any caller could read/delete sessions if they know IDs (privacy and integrity risk).",
+    "useActor attempts optional access-control initialization methods, but backend/main.mo does not implement them; this is benign but indicates partial/unused access-control plumbing.",
+    "Fee optimization notional uses entryPrice * positionSize (can be negative for shorts) in some places; ratio calculations using notional > 0 may mis-handle short positions unless absolute notional is used."
+  ],
+  "isFixRequest": false,
+  "generatedImages": [],
+  "existing_features": [
+    {
+      "id": "IF-1",
+      "title": "CSV upload with drag-and-drop and validation",
+      "synonyms": [
+        "File upload",
+        "CSV intake"
+      ],
+      "description": "Provides a drag-and-drop and file-picker upload flow with validation for extension, size (10MB), non-empty content, processing state, and user feedback via alerts/toasts (German UI).",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-2",
+      "title": "Robust CSV parsing (multi-format, multilingual, headerless inference)",
+      "synonyms": [
+        "CSV parser",
+        "Hyperliquid CSV support"
+      ],
+      "description": "Parses CSV text with delimiter detection (comma/semicolon, Hyperliquid column hints), German→English header normalization, headerless CSV detection via trading-action keywords, and dynamic column type inference/mapping based on sampled content patterns.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-3",
+      "title": "Number format detection and normalization (DE/EN)",
+      "synonyms": [
+        "Locale number parsing",
+        "Decimal separator handling"
+      ],
+      "description": "Detects numeric format (comma vs dot decimal) by sampling values and normalizes values by removing currency symbols/thousand separators, handling negatives, and applying fallbacks to reliably produce floats.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-4",
+      "title": "Trade time parsing and tradeId enrichment",
+      "synonyms": [
+        "Timestamp parsing",
+        "Trade ID normalization"
+      ],
+      "description": "Parses time fields (German datetime formats and unix timestamps) into ISO strings and prepends them to tradeId as \"<ISO>|<id>\" to enable chronological sorting.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-5",
+      "title": "Leverage computation from available fields (no defaults)",
+      "synonyms": [
+        "Dynamic leverage",
+        "Leverage inference"
+      ],
+      "description": "Computes leverage using a priority formula across marginUsed, notional (ntl), and fee (with epsilon guard), rounds to two decimals, returns undefined when insufficient/invalid data exists, and stores leverage on each TradePosition.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-6",
+      "title": "Liquidation detection and explanation primitives",
+      "synonyms": [
+        "Liquidation flagging",
+        "Liquidation reason"
+      ],
+      "description": "Infers liquidation status from Hyperliquid 'dir' semantics, status text, and heuristics; assigns liquidation-related status and optional liquidation reason text (used in parsing/debug).",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-7",
+      "title": "Risk level and position status classification",
+      "synonyms": [
+        "Risk scoring",
+        "Safe/At-risk/Liquidated"
+      ],
+      "description": "Computes RiskLevel based on distance to liquidation and margin ratio, and derives PositionStatus (safe/atRisk/liquidated) for each position.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-8",
+      "title": "Asset categorization with metals and stablecoins highlighting",
+      "synonyms": [
+        "Asset category detection",
+        "Metals/stablecoins classification"
+      ],
+      "description": "Classifies assets into metals (Gold/Silber/Kupfer), stablecoins (USDC/USDE/USDH), and crypto; provides helpers to filter positions by category and obtain category-specific icons/colors.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-9",
+      "title": "Analysis summary computation (global and filtered)",
+      "synonyms": [
+        "KPIs",
+        "Trade summary"
+      ],
+      "description": "Computes TradeSummary metrics: total positions, liquidated count, total PnL, total margin, average risk level, and metals PnL. Also recalculates summaries for an asset-filtered subset.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-10",
+      "title": "Asset filter selector with search and category grouping",
+      "synonyms": [
+        "Asset picker",
+        "Asset dropdown filter"
+      ],
+      "description": "Provides an asset selection UI with search, scrollable grouped lists for Metals/Stablecoins/Cryptos, category styling, and displays selected asset KPIs (total/avg PnL and trade count).",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-11",
+      "title": "Interactive summary dashboard cards",
+      "synonyms": [
+        "KPI cards",
+        "Overview cards"
+      ],
+      "description": "Shows key KPIs (positions, liquidations, total PnL, avg risk, margin) and conditionally displays category-specific cards for Metals PnL and Stablecoins PnL with distinctive gradients.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-12",
+      "title": "Charts dashboard (PnL and distributions)",
+      "synonyms": [
+        "Recharts visualizations",
+        "Analytics charts"
+      ],
+      "description": "Renders bar and pie charts: PnL by asset (click-to-filter), per-trade realized PnL with long/short coloring, long/short distribution, position status distribution, and liquidation status distribution with custom tooltips and category highlighting.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-13",
+      "title": "Positions table with sorting, category sections, and collapsible details",
+      "synonyms": [
+        "Trades table",
+        "Detailed positions list"
+      ],
+      "description": "Displays positions grouped into Metals/Stablecoins/Cryptos with scroll areas, sortable newest/oldest using timestamps from tradeId, row expansion for detailed fields, status/risk badges, leverage formatting and high-leverage warnings.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-14",
+      "title": "Results view with tab-based status filtering and actions",
+      "synonyms": [
+        "Analysis results page",
+        "Tabs for safe/at-risk/liquidated"
+      ],
+      "description": "Presents analyzed data with tabs for all/safe/at-risk/liquidated subsets, integrates asset filtering, and provides actions for exporting results and starting a new analysis.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-15",
+      "title": "CSV export of analyzed positions",
+      "synonyms": [
+        "Export results",
+        "Download CSV"
+      ],
+      "description": "Exports the current analysis positions into a downloadable CSV file including direction, leverage, fee, risk/status, liquidation flag, and asset category labels.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-16",
+      "title": "Fee overview analytics and recommendations (frontend)",
+      "synonyms": [
+        "Fee analysis",
+        "Fee breakdown"
+      ],
+      "description": "Computes total and average fees, fee breakdown by asset/direction/category, top fee trades, and generates German-language recommendations; displayed in an expandable dashboard with charts.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-17",
+      "title": "Fee optimization analysis (frontend)",
+      "synonyms": [
+        "Efficiency scoring",
+        "High-fee trade detection"
+      ],
+      "description": "Identifies high-fee trades using fee-to-notional ratios vs asset/global averages, generates contextual reasons and actionable recommendations, visualizes fee efficiency scores, provides category-specific optimization hints, and estimates potential savings.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-18",
+      "title": "Internet Identity authentication context",
+      "synonyms": [
+        "II login",
+        "Auth provider"
+      ],
+      "description": "Implements an InternetIdentityProvider using @dfinity/auth-client to load persisted identity, login/logout, and expose loginStatus flags; supports long-lived delegations (30 days).",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-19",
+      "title": "IC canister actor creation with identity and optional access-control initialization",
+      "synonyms": [
+        "useActor",
+        "Backend actor hook"
+      ],
+      "description": "Creates an anonymous or authenticated backend actor depending on identity, optionally calls backend access-control initialization methods when present, and invalidates/refetches React Query caches when the actor changes.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-20",
+      "title": "React Query hooks for session persistence and stats queries",
+      "synonyms": [
+        "useQueries",
+        "Backend API hooks"
+      ],
+      "description": "Implements hooks to get all sessions, user sessions, a session by id, asset stats by category, available assets, and reference lists (metals/stablecoins); supports storing sessions with computed per-category asset stats and deleting sessions with cache invalidation.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-21",
+      "title": "Backend: analysis session storage and retrieval APIs (Motoko)",
+      "synonyms": [
+        "storeAnalysisSession",
+        "Session APIs"
+      ],
+      "description": "Motoko canister defines AnalysisSession (positions, summary, per-category stats, available assets lists, timestamp, optional feeOverview) and provides methods to store sessions, fetch a session, list all sessions, list sessions for a principal, and delete sessions.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-22",
+      "title": "Backend: asset stats queries and reference data",
+      "synonyms": [
+        "getAssetStats",
+        "Metals/stablecoins lists"
+      ],
+      "description": "Provides getAssetStats(sessionId, category?) returning category-specific stats arrays, getSessionAvailableAssets, and reference endpoints getAllMetals and getAllStablecoins.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-23",
+      "title": "Backend: leverage utilities and legacy helpers",
+      "synonyms": [
+        "Dynamic leverage API",
+        "Closest leverage tier"
+      ],
+      "description": "Implements default leverage getters per category, per-asset leverage endpoints, closest legacy leverage tier selection, calculateDynamicLeverage with two-decimal rounding, and placeholder leverage stats plus legacy unique symbol aggregation.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-24",
+      "title": "Caffeine blob-storage mixin endpoints",
+      "synonyms": [
+        "Blob GC support",
+        "Gateway authorization"
+      ],
+      "description": "Includes Caffeine storage mixin for gateway principal refresh, authorization checks, dead-blob listing and pruning with forced GC trigger, cashier cycle refill, and upload certificate creation.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-25",
+      "title": "HTTP outcall helper module (Motoko)",
+      "synonyms": [
+        "IC.http_request wrapper",
+        "HTTP GET/POST"
+      ],
+      "description": "Provides httpGetRequest/httpPostRequest wrappers with cycle budgeting, header augmentation (User-Agent, Idempotency-Key), and a transform function to strip response headers.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-26",
+      "title": "Secure URL secret extraction for admin tokens",
+      "synonyms": [
+        "Hash secret params",
+        "URL param utilities"
+      ],
+      "description": "Utility to read secret parameters from the URL hash fragment, persist them in sessionStorage, and clear them from the URL to reduce leakage (used for optional backend access-control initialization).",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "IF-27",
+      "title": "Theming and UI scaffolding with error fallbacks",
+      "synonyms": [
+        "Dark mode",
+        "App shell"
+      ],
+      "description": "App shell includes Header/Footer branding, ThemeProvider (dark by default), toast notifications, and fallback UIs for missing root container or render errors with reset navigation.",
+      "reqIds": [],
+      "version": 1
+    },
+    {
+      "id": "feature-add-a-new-ui-view-for-a-live-hyperliquid-orderbook-heatmap-that-visualizes-orderbook-depth-with-a-bid-ask-color-scale-bids-dark-green-light-green-asks-dark-red-light-red-and-updates-continuously",
+      "title": "Add a new UI view for a live Hyperliquid orderbook heatmap that visualizes orderbook depth with a bid/ask color scale (bids: dark green → light green, asks: dark red → light red) and updates continuously.",
+      "reqIds": [
+        "REQ-1"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-provide-heatmap-controls-market-symbol-selection-depth-levels-selection-update-interval-selection-and-an-optional-pause-resume-toggle-for-live-updates",
+      "title": "Provide heatmap controls: market/symbol selection, depth/levels selection, update interval selection, and an optional pause/resume toggle for live updates.",
+      "reqIds": [
+        "REQ-2"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-implement-orderbook-data-fetching-for-hyperliquid-using-periodic-http-polling-of-the-public-hyperliquid-api-snapshot-based-with-robust-error-handling-rate-limits-network-errors-and-a-graceful-ui-empty-error-state",
+      "title": "Implement orderbook data fetching for Hyperliquid using periodic HTTP polling of the public Hyperliquid API (snapshot-based), with robust error handling (rate limits, network errors) and a graceful UI empty/error state.",
+      "reqIds": [
+        "REQ-3"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-add-a-backend-proxy-endpoint-to-fetch-hyperliquid-orderbook-snapshots-via-ic-http-outcalls-when-direct-browser-fetch-is-blocked-e-g-cors-and-expose-it-as-a-canister-method-that-the-frontend-can-call-as-a-fallback",
+      "title": "Add a backend proxy endpoint to fetch Hyperliquid orderbook snapshots via IC HTTP outcalls when direct browser fetch is blocked (e.g., CORS), and expose it as a canister method that the frontend can call as a fallback.",
+      "reqIds": [
+        "REQ-4"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-render-the-heatmap-as-a-performant-continuously-updating-visualization-canvas-based-or-similarly-efficient-that-maps-price-levels-to-rows-and-depth-size-to-color-intensity-with-separate-treatment-for-bids-vs-asks-around-the-mid-price",
+      "title": "Render the heatmap as a performant, continuously updating visualization (canvas-based or similarly efficient) that maps price levels to rows and depth size to color intensity, with separate treatment for bids vs asks around the mid price.",
+      "reqIds": [
+        "REQ-5"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-update-the-orderbook-heatmap-canvas-rendering-to-display-bids-and-asks-as-large-continuous-cluster-like-shapes-triangle-style-with-smooth-gradients-bids-light-green-dark-green-asks-light-red-dark-red-so-users-can-see-buy-vs-sell-dominance-at-a-glance-instead-of-disconnected-individual-bars-that-visually-blink",
+      "title": "Update the orderbook heatmap canvas rendering to display bids and asks as large, continuous, cluster-like shapes (triangle-style) with smooth gradients (bids: light green→dark green; asks: light red→dark red) so users can see buy-vs-sell dominance at a glance, instead of disconnected individual bars that visually \"blink\".",
+      "reqIds": [
+        "REQ-6"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-add-a-user-control-in-the-orderbook-heatmap-view-to-switch-between-the-current-per-level-bars-rendering-and-the-new-cluster-rendering-and-update-the-legend-text-to-match-the-selected-rendering-mode-english-ui-text",
+      "title": "Add a user control in the Orderbook Heatmap view to switch between the current \"Per-level bars\" rendering and the new \"Cluster\" rendering, and update the legend text to match the selected rendering mode (English UI text).",
+      "reqIds": [
+        "REQ-7"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-reduce-perceived-flashing-in-live-heatmap-updates-by-smoothing-transitions-between-snapshots-in-the-visualization-e-g-interpolate-intensity-shape-changes-over-time-while-keeping-the-existing-polling-interval-behavior-unchanged",
+      "title": "Reduce perceived flashing in live heatmap updates by smoothing transitions between snapshots in the visualization (e.g., interpolate intensity/shape changes over time), while keeping the existing polling interval behavior unchanged.",
+      "reqIds": [
+        "REQ-8"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-update-the-orderbook-heatmap-cluster-rendering-so-bids-and-asks-are-drawn-as-two-unified-continuous-triangle-like-shapes-one-green-for-bids-one-red-for-asks-instead-of-per-level-rectangles-the-triangles-must-visually-represent-cumulative-depth-across-price-levels-with-smooth-gradients-bids-light-green-dark-green-asks-light-red-dark-red",
+      "title": "Update the Orderbook Heatmap \"cluster\" rendering so bids and asks are drawn as two unified, continuous triangle-like shapes (one green for bids, one red for asks) instead of per-level rectangles; the triangles must visually represent cumulative depth across price levels with smooth gradients (bids: light green → dark green, asks: light red → dark red).",
+      "reqIds": [
+        "REQ-9"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-make-the-two-triangle-shapes-dynamically-scale-their-overall-width-area-based-on-relative-total-depth-if-aggregate-bid-depth-is-greater-than-aggregate-ask-depth-the-green-bid-triangle-must-be-larger-than-the-red-ask-triangle-if-aggregate-ask-depth-is-greater-the-red-ask-triangle-must-be-larger-than-the-green-bid-triangle",
+      "title": "Make the two triangle shapes dynamically scale their overall width/area based on relative total depth: if aggregate bid depth is greater than aggregate ask depth, the green bid triangle must be larger than the red ask triangle; if aggregate ask depth is greater, the red ask triangle must be larger than the green bid triangle.",
+      "reqIds": [
+        "REQ-10"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-update-the-legend-text-shown-in-the-orderbook-heatmap-view-for-cluster-mode-to-describe-the-new-unified-bid-ask-triangle-visualization-and-the-meaning-of-triangle-size-relative-dominance-using-english-ui-text",
+      "title": "Update the Legend text shown in the Orderbook Heatmap view for \"Cluster\" mode to describe the new unified bid/ask triangle visualization and the meaning of triangle size (relative dominance), using English UI text.",
+      "reqIds": [
+        "REQ-11"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-make-the-orderbook-heatmap-cluster-triangle-mode-change-size-more-slowly-by-slowing-the-transition-animation-between-snapshots-and-aligning-the-transition-duration-with-the-selected-update-interval-so-triangles-grow-shrink-gradually-instead-of-jumping-every-1s",
+      "title": "Make the Orderbook Heatmap (cluster/triangle mode) change size more slowly by slowing the transition animation between snapshots and aligning the transition duration with the selected Update Interval (so triangles grow/shrink gradually instead of jumping every ~1s).",
+      "reqIds": [
+        "REQ-12"
+      ],
+      "version": 1
+    },
+    {
+      "id": "feature-extend-the-update-interval-control-in-the-orderbook-heatmap-view-with-slower-options-suitable-for-gradual-triangle-changes-e-g-add-10s-and-15s-and-choose-a-slower-default-interval-so-the-first-experience-is-not-per-second-updates",
+      "title": "Extend the Update Interval control in the Orderbook Heatmap view with slower options suitable for gradual triangle changes (e.g., add 10s and 15s), and choose a slower default interval so the first experience is not \"per-second\" updates.",
+      "reqIds": [
+        "REQ-13"
+      ],
+      "version": 1
+    }
+  ],
+  "new_feature_requests": [
+    {
+      "id": "AR-1",
+      "summary": "Live Hyperliquid Orderbook-Heatmap (DOM): Echtzeit-Tiefenvisualisierung mit Farbskala dunkelgrün→hellgrün (Bids) und dunkelrot→hellrot (Asks)",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-2",
+      "summary": "Orderbook-Heatmap: zusammenhängende bid/ask Cluster-Darstellung (großes grünes/rotes „Dreieck“ mit hell→dunkel Farbnuancen) statt einzelner aufblinkender Balken, um Buy-vs-Sell-Übergewicht auf einen Blick zu erkennen",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-3",
+      "summary": "Orderbook-Heatmap: Bid/Ask als zwei einheitliche Dreiecke rendern, deren Flächengröße dynamisch an die relative Buy-vs-Sell-Orderbook-Tiefe angepasst wird (mehr Bids => grünes Dreieck größer, mehr Asks => rotes Dreieck größer)",
+      "reqIds": [],
+      "status": "pending"
+    },
+    {
+      "id": "AR-4",
+      "summary": "Orderbook-Heatmap (Cluster/Dreiecke): Update-/Animations-Zeitintervall verlangsamen, damit die Dreiecke nicht im Sekundentakt springen, sondern langsamer größer/kleiner werden (ggf. separate Animation-Dauer vs. Polling).",
+      "reqIds": [],
+      "status": "pending"
+    }
+  ],
+  "gameProjectType": "none",
+  "projectName": "Hyperliquid Trade Analyzer",
+  "clarification_mode": "instant",
+  "clarification_rounds": 0
+}

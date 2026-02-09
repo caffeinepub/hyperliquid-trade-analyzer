@@ -1,0 +1,44 @@
+{
+  "kind": "implementation_plan",
+  "version": "1.0",
+  "title": "Smoother and slower cluster-mode transitions in Orderbook Heatmap",
+  "requirements": [
+    {
+      "id": "REQ-12",
+      "summary": "Derive cluster-mode triangle transition duration from the selected Update Interval to slow and smooth size changes without altering polling cadence.",
+      "acceptanceCriteria": [
+        "When Rendering Mode is set to \"Cluster\", triangle shape/size changes are visibly smoother and slower (no rapid per-second \"jumping\") at the default settings.",
+        "Transition/animation duration used by the canvas is derived from the currently selected Update Interval (e.g., a large fraction of the interval) and updates immediately when the interval changes.",
+        "The polling behavior (snapshot fetch cadence) continues to follow the selected Update Interval; only the visual transition speed is adjusted."
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/components/orderbook/OrderbookHeatmapCanvas.tsx",
+          "operation": "modify",
+          "description": "Replace the fixed TRANSITION_DURATION with a prop-driven (or otherwise externally configurable) transition duration that is computed from the selected Update Interval when renderingMode is \"cluster\" (e.g., clamp to a safe min/max and use a large fraction of the interval). Ensure the duration change takes effect immediately (including mid-transition) by referencing the latest duration value in the animation loop (e.g., via a ref) so triangles grow/shrink gradually instead of jumping."
+        },
+        {
+          "path": "frontend/src/components/OrderbookHeatmapView.tsx",
+          "operation": "modify",
+          "description": "Pass the currently selected Update Interval (and/or a derived transitionDurationMs) down to OrderbookHeatmapCanvas so the canvas animation duration stays aligned with the user's interval selection, while leaving the existing polling cadence (useHyperliquidOrderbook interval) unchanged."
+        }
+      ]
+    },
+    {
+      "id": "REQ-13",
+      "summary": "Add slower Update Interval dropdown options (10s, 15s) and set a slower default interval for the Orderbook Heatmap view.",
+      "acceptanceCriteria": [
+        "The Update Interval dropdown includes additional slow options beyond the current 1s/2s/5s (at minimum: 10s and 15s).",
+        "The default Update Interval value in `frontend/src/components/OrderbookHeatmapView.tsx` is set to a slower setting (>= 5s).",
+        "All user-facing labels for these options are in English (consistent with the current control labels)."
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/components/OrderbookHeatmapView.tsx",
+          "operation": "modify",
+          "description": "Extend INTERVAL_OPTIONS to include slower options (at minimum 10s and 15s) with English labels, and change the initial interval state to a slower default (>= 5000ms) so the first experience is not per-second updates."
+        }
+      ]
+    }
+  ]
+}

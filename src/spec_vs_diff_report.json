@@ -1,0 +1,23 @@
+{
+  "kind": "spec_vs_diff_report",
+  "version": "1.0",
+  "generatedAt": "2026-02-09T19:54:27.599Z",
+  "summary": "REQ-12 and REQ-13 appear implemented: the canvas transition duration is derived from the selected update interval and updates on interval change, and the Update Interval dropdown adds 10s/15s options with a slower default (5s). No backend changes are shown.",
+  "missing_requirements": [],
+  "hallucinated_features": [
+    {
+      "description": "Default rendering mode set to 'cluster' in OrderbookHeatmapView.",
+      "reason": "BuildRequest only asked to slow cluster/triangle transitions and extend/slow the Update Interval default; it did not request changing the default Rendering Mode.",
+      "evidence": [
+        "frontend/src/components/OrderbookHeatmapView.tsx (useState<RenderingMode>('cluster'))"
+      ]
+    }
+  ],
+  "confidence": 0.78,
+  "changed_files": [
+    "frontend-file-summaries.txt",
+    "frontend/src/components/OrderbookHeatmapView.tsx",
+    "frontend/src/components/orderbook/OrderbookHeatmapCanvas.tsx",
+    "project_state.json"
+  ]
+}

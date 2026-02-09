@@ -1,0 +1,46 @@
+{
+  "kind": "feature_evidence_report",
+  "features": [
+    {
+      "featureId": "feature-make-the-orderbook-heatmap-cluster-triangle-mode-change-size-more-slowly-by-slowing-the-transition-animation-between-snapshots-and-aligning-the-transition-duration-with-the-selected-update-interval-so-triangles-grow-shrink-gradually-instead-of-jumping-every-1s",
+      "featureTitle": "Make the Orderbook Heatmap (cluster/triangle mode) change size more slowly by slowing the transition animation between snapshots and aligning the transition duration with the selected Update Interval (so triangles grow/shrink gradually instead of jumping every ~1s).",
+      "files": [
+        "frontend/src/components/OrderbookHeatmapView.tsx",
+        "frontend/src/components/orderbook/OrderbookHeatmapCanvas.tsx"
+      ],
+      "components": [
+        "blob-storage@4.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "http-outcalls@3.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-12"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-extend-the-update-interval-control-in-the-orderbook-heatmap-view-with-slower-options-suitable-for-gradual-triangle-changes-e-g-add-10s-and-15s-and-choose-a-slower-default-interval-so-the-first-experience-is-not-per-second-updates",
+      "featureTitle": "Extend the Update Interval control in the Orderbook Heatmap view with slower options suitable for gradual triangle changes (e.g., add 10s and 15s), and choose a slower default interval so the first experience is not \"per-second\" updates.",
+      "files": [
+        "frontend/src/components/OrderbookHeatmapView.tsx"
+      ],
+      "components": [
+        "blob-storage@4.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "http-outcalls@3.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-13"
+      ],
+      "confidence": "high"
+    }
+  ]
+}
