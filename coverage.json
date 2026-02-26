@@ -1,0 +1,96 @@
+{
+  "kind": "coverage_report",
+  "version": "1.0",
+  "generatedAt": "2026-02-26T10:34:12.397Z",
+  "sources": {
+    "buildRequest": true,
+    "implementationPlan": true
+  },
+  "requirements": {
+    "total": 5,
+    "implemented": 5,
+    "items": [
+      {
+        "id": "REQ-15",
+        "summary": "Add a new 'Trade Entry Checker' tab/view in the app (alongside the existing tabs in App.tsx) that allows the user to input the following parameters for a potential trade: Current Price, EMA20, EMA50, EMA200, RSI (0–100), ATR (absolute value), MACD Direction (dropdown: Bullish / Neutral / Bearish), and Trade Direction (Long / Short). All input labels and UI text must be in English.",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/App.tsx",
+          "frontend/src/components/TradeEntryChecker.tsx",
+          "frontend/src/lib/tradeEntryRules.ts"
+        ],
+        "matchedFiles": [
+          "frontend/src/App.tsx",
+          "frontend/src/components/TradeEntryChecker.tsx",
+          "frontend/src/lib/tradeEntryRules.ts"
+        ]
+      },
+      {
+        "id": "REQ-16",
+        "summary": "Implement a purely frontend rule engine that evaluates the submitted parameters and produces a clear entry recommendation. For Long entries evaluate: (1) EMA trend alignment: EMA20 > EMA50 > EMA200; (2) Price proximity: Current Price is within 1× ATR above EMA20 (not overextended); (3) RSI not overbought: RSI < 65; (4) MACD Direction is Bullish or Neutral. For Short entries mirror the conditions (EMA20 < EMA50 < EMA200, price within 1× ATR below EMA20, RSI > 35, MACD Bearish or Neutral). Each condition is evaluated independently and displayed as a checklist row with a pass/fail indicator.",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/lib/tradeEntryRules.ts",
+          "frontend/src/components/TradeEntryChecker.tsx",
+          "frontend/src/components/EntryChecklistResults.tsx"
+        ],
+        "matchedFiles": [
+          "frontend/src/lib/tradeEntryRules.ts",
+          "frontend/src/components/TradeEntryChecker.tsx",
+          "frontend/src/components/EntryChecklistResults.tsx"
+        ]
+      },
+      {
+        "id": "REQ-17",
+        "summary": "Below the checklist, display a short plain-English explanation for each failed condition describing why it disqualifies the entry and what the user should wait for. For example: if RSI ≥ 65 on a Long, show 'RSI is overbought (≥65) – wait for RSI to pull back below 60 before entering.' If price is overextended beyond 1× ATR above EMA20, show 'Price is overextended above EMA20 – wait for a pullback to EMA20 level before entering.'",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/lib/tradeEntryRules.ts",
+          "frontend/src/components/EntryChecklistResults.tsx"
+        ],
+        "matchedFiles": [
+          "frontend/src/lib/tradeEntryRules.ts",
+          "frontend/src/components/EntryChecklistResults.tsx"
+        ]
+      },
+      {
+        "id": "REQ-18",
+        "summary": "Add a visual summary card at the top of the Trade Entry Checker results that shows: the selected trade direction (Long/Short) with a colored badge, the asset implied by the inputs (free-text asset name input field added to the form), and the overall verdict (Go / Wait / No-Go) with traffic-light color coding (green / yellow / red) and a matching icon.",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/components/EntryChecklistResults.tsx"
+        ],
+        "matchedFiles": [
+          "frontend/src/components/EntryChecklistResults.tsx"
+        ]
+      },
+      {
+        "id": "REQ-19",
+        "summary": "The Trade Entry Checker form must include a 'Reset' button that clears all inputs and the result, and a 'Check Entry' submit button that triggers evaluation. Inputs should be validated: numeric fields must be positive numbers, RSI must be 0–100, ATR must be > 0. Show inline validation errors in English if the user submits with missing or invalid values.",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/components/TradeEntryChecker.tsx"
+        ],
+        "matchedFiles": [
+          "frontend/src/components/TradeEntryChecker.tsx"
+        ]
+      }
+    ]
+  },
+  "changedFiles": [
+    "build-request.json",
+    "build-template/README.md",
+    "caffeine.lock.json",
+    "feature_evidence.json",
+    "frontend-file-summaries.txt",
+    "frontend-implementation-plan.json",
+    "frontend/src/App.tsx",
+    "frontend/src/components/EntryChecklistResults.tsx",
+    "frontend/src/components/TradeEntryChecker.tsx",
+    "frontend/src/lib/tradeEntryRules.ts",
+    "project_state.json",
+    "scratch/component-selection.json",
+    "spec.md",
+    "spec_vs_diff_report.json"
+  ]
+}

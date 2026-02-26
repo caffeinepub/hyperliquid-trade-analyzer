@@ -1,0 +1,118 @@
+{
+  "kind": "build_request",
+  "title": "Trade Entry Checker – Parameter-based entry signal tool",
+  "projectName": "Vibe Trader",
+  "priority": "normal",
+  "requirements": [
+    {
+      "id": "REQ-15",
+      "text": "Add a new 'Trade Entry Checker' tab/view in the app (alongside the existing tabs in App.tsx) that allows the user to input the following parameters for a potential trade: Current Price, EMA20, EMA50, EMA200, RSI (0–100), ATR (absolute value), MACD Direction (dropdown: Bullish / Neutral / Bearish), and Trade Direction (Long / Short). All input labels and UI text must be in English.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-last"
+        ],
+        "quotes": [
+          "kannst du sowas in die App mit einbauen, wo man bestimmte Parameter eingibt, und die App dann sagt, ob man einsteigen soll oder lieber nicht?"
+        ]
+      },
+      "acceptanceCriteria": [
+        "A new 'Trade Entry Checker' tab is visible in the main navigation.",
+        "The view contains numeric inputs for Current Price, EMA20, EMA50, EMA200, ATR, and RSI.",
+        "A dropdown allows selecting MACD Direction: Bullish, Neutral, or Bearish.",
+        "A toggle or radio allows selecting trade direction: Long or Short.",
+        "All labels, placeholders, and button text are in English."
+      ]
+    },
+    {
+      "id": "REQ-16",
+      "text": "Implement a purely frontend rule engine that evaluates the submitted parameters and produces a clear entry recommendation. For Long entries evaluate: (1) EMA trend alignment: EMA20 > EMA50 > EMA200; (2) Price proximity: Current Price is within 1× ATR above EMA20 (not overextended); (3) RSI not overbought: RSI < 65; (4) MACD Direction is Bullish or Neutral. For Short entries mirror the conditions (EMA20 < EMA50 < EMA200, price within 1× ATR below EMA20, RSI > 35, MACD Bearish or Neutral). Each condition is evaluated independently and displayed as a checklist row with a pass/fail indicator.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-last"
+        ],
+        "quotes": [
+          "die App dann sagt, ob man einsteigen soll oder lieber nicht"
+        ]
+      },
+      "acceptanceCriteria": [
+        "After submitting the form, each of the four conditions is shown as a labeled checklist row with a green checkmark (pass) or red cross (fail) icon.",
+        "The number of conditions met is counted and displayed (e.g., '3 / 4 conditions met').",
+        "If all 4 conditions pass, a prominent green 'Entry looks good – proceed with caution' message is shown.",
+        "If 3 conditions pass, a yellow 'Marginal setup – wait for better confirmation' message is shown.",
+        "If 2 or fewer conditions pass, a red 'Do not enter – setup not confirmed' message is shown.",
+        "The overextension check uses the ATR value: entry is flagged if Current Price > EMA20 + 1×ATR (Long) or Current Price < EMA20 − 1×ATR (Short)."
+      ]
+    },
+    {
+      "id": "REQ-17",
+      "text": "Below the checklist, display a short plain-English explanation for each failed condition describing why it disqualifies the entry and what the user should wait for. For example: if RSI ≥ 65 on a Long, show 'RSI is overbought (≥65) – wait for RSI to pull back below 60 before entering.' If price is overextended beyond 1× ATR above EMA20, show 'Price is overextended above EMA20 – wait for a pullback to EMA20 level before entering.'",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-last"
+        ],
+        "quotes": [
+          "die App dann sagt, ob man einsteigen soll oder lieber nicht"
+        ]
+      },
+      "acceptanceCriteria": [
+        "Each failed condition has a corresponding explanation text rendered beneath the checklist.",
+        "Passed conditions show no extra explanation text (or a brief green confirmation).",
+        "All explanation texts are in English.",
+        "Explanations reference the actual input values where meaningful (e.g., 'RSI is 72, which is above the 65 threshold')."
+      ]
+    },
+    {
+      "id": "REQ-18",
+      "text": "Add a visual summary card at the top of the Trade Entry Checker results that shows: the selected trade direction (Long/Short) with a colored badge, the asset implied by the inputs (free-text asset name input field added to the form), and the overall verdict (Go / Wait / No-Go) with traffic-light color coding (green / yellow / red) and a matching icon.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-last"
+        ]
+      },
+      "acceptanceCriteria": [
+        "A summary card is displayed above the checklist after evaluation.",
+        "The card shows the asset name entered by the user.",
+        "The card shows the selected direction (Long in green tones, Short in red tones).",
+        "The verdict badge is green for 'Go', yellow for 'Wait', and red for 'No-Go'.",
+        "The card is rendered before the per-condition checklist."
+      ]
+    },
+    {
+      "id": "REQ-19",
+      "text": "The Trade Entry Checker form must include a 'Reset' button that clears all inputs and the result, and a 'Check Entry' submit button that triggers evaluation. Inputs should be validated: numeric fields must be positive numbers, RSI must be 0–100, ATR must be > 0. Show inline validation errors in English if the user submits with missing or invalid values.",
+      "target": "frontend",
+      "source": {
+        "messageIds": [
+          "msg-last"
+        ]
+      },
+      "acceptanceCriteria": [
+        "Submitting with any empty required field shows an inline error message next to that field.",
+        "Submitting with RSI outside 0–100 shows an inline error.",
+        "Submitting with ATR ≤ 0 shows an inline error.",
+        "The Reset button clears all fields and hides the results panel.",
+        "The Check Entry button triggers evaluation and scrolls/focuses the results."
+      ]
+    }
+  ],
+  "constraints": [
+    "All rule evaluation logic must be purely frontend (no backend calls required for this feature).",
+    "Do not modify any files listed in frontend.immutablePaths.",
+    "All user-facing text in the new view must be in English."
+  ],
+  "nonGoals": [
+    "No real-time price or indicator data fetching – all values are manually entered by the user.",
+    "No integration with Hyperliquid API for EMA/RSI/ATR data in this feature.",
+    "No backend storage of entry checks or results.",
+    "No charting or candlestick rendering inside the Trade Entry Checker.",
+    "The uploaded image (ICT models: HTF POI, FVG, OTE, Box Setup) is for inspiration/context only – the checker does not need to implement ICT model logic, only the EMA/RSI/ATR/MACD rules discussed in the conversation."
+  ],
+  "imageRequirements": {
+    "required": [],
+    "edits": []
+  }
+}

@@ -1,0 +1,110 @@
+{
+  "kind": "feature_evidence_report",
+  "features": [
+    {
+      "featureId": "feature-add-a-new-trade-entry-checker-tab-view-in-the-app-alongside-the-existing-tabs-in-app-tsx-that-allows-the-user-to-input-the-following-parameters-for-a-potential-trade-current-price-ema20-ema50-ema200-rsi-0-100-atr-absolute-value-macd-direction-dropdown-bullish-neutral-bearish-and-trade-direction-long-short-all-input-labels-and-ui-text-must-be-in-english",
+      "featureTitle": "Add a new 'Trade Entry Checker' tab/view in the app (alongside the existing tabs in App.tsx) that allows the user to input the following parameters for a potential trade: Current Price, EMA20, EMA50, EMA200, RSI (0–100), ATR (absolute value), MACD Direction (dropdown: Bullish / Neutral / Bearish), and Trade Direction (Long / Short). All input labels and UI text must be in English.",
+      "files": [
+        "frontend/src/App.tsx",
+        "frontend/src/components/TradeEntryChecker.tsx",
+        "frontend/src/lib/tradeEntryRules.ts"
+      ],
+      "components": [
+        "blob-storage@4.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "http-outcalls@3.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-15"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-implement-a-purely-frontend-rule-engine-that-evaluates-the-submitted-parameters-and-produces-a-clear-entry-recommendation-for-long-entries-evaluate-1-ema-trend-alignment-ema20-ema50-ema200-2-price-proximity-current-price-is-within-1-atr-above-ema20-not-overextended-3-rsi-not-overbought-rsi-65-4-macd-direction-is-bullish-or-neutral-for-short-entries-mirror-the-conditions-ema20-ema50-ema200-price-within-1-atr-below-ema20-rsi-35-macd-bearish-or-neutral-each-condition-is-evaluated-independently-and-displayed-as-a-checklist-row-with-a-pass-fail-indicator",
+      "featureTitle": "Implement a purely frontend rule engine that evaluates the submitted parameters and produces a clear entry recommendation. For Long entries evaluate: (1) EMA trend alignment: EMA20 > EMA50 > EMA200; (2) Price proximity: Current Price is within 1× ATR above EMA20 (not overextended); (3) RSI not overbought: RSI < 65; (4) MACD Direction is Bullish or Neutral. For Short entries mirror the conditions (EMA20 < EMA50 < EMA200, price within 1× ATR below EMA20, RSI > 35, MACD Bearish or Neutral). Each condition is evaluated independently and displayed as a checklist row with a pass/fail indicator.",
+      "files": [
+        "frontend/src/components/EntryChecklistResults.tsx",
+        "frontend/src/components/TradeEntryChecker.tsx",
+        "frontend/src/lib/tradeEntryRules.ts"
+      ],
+      "components": [
+        "blob-storage@4.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "http-outcalls@3.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-16"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-below-the-checklist-display-a-short-plain-english-explanation-for-each-failed-condition-describing-why-it-disqualifies-the-entry-and-what-the-user-should-wait-for-for-example-if-rsi-65-on-a-long-show-rsi-is-overbought-65-wait-for-rsi-to-pull-back-below-60-before-entering-if-price-is-overextended-beyond-1-atr-above-ema20-show-price-is-overextended-above-ema20-wait-for-a-pullback-to-ema20-level-before-entering",
+      "featureTitle": "Below the checklist, display a short plain-English explanation for each failed condition describing why it disqualifies the entry and what the user should wait for. For example: if RSI ≥ 65 on a Long, show 'RSI is overbought (≥65) – wait for RSI to pull back below 60 before entering.' If price is overextended beyond 1× ATR above EMA20, show 'Price is overextended above EMA20 – wait for a pullback to EMA20 level before entering.'",
+      "files": [
+        "frontend/src/components/EntryChecklistResults.tsx",
+        "frontend/src/lib/tradeEntryRules.ts"
+      ],
+      "components": [
+        "blob-storage@4.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "http-outcalls@3.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-17"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-add-a-visual-summary-card-at-the-top-of-the-trade-entry-checker-results-that-shows-the-selected-trade-direction-long-short-with-a-colored-badge-the-asset-implied-by-the-inputs-free-text-asset-name-input-field-added-to-the-form-and-the-overall-verdict-go-wait-no-go-with-traffic-light-color-coding-green-yellow-red-and-a-matching-icon",
+      "featureTitle": "Add a visual summary card at the top of the Trade Entry Checker results that shows: the selected trade direction (Long/Short) with a colored badge, the asset implied by the inputs (free-text asset name input field added to the form), and the overall verdict (Go / Wait / No-Go) with traffic-light color coding (green / yellow / red) and a matching icon.",
+      "files": [
+        "frontend/src/components/EntryChecklistResults.tsx"
+      ],
+      "components": [
+        "blob-storage@4.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "http-outcalls@3.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-18"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-the-trade-entry-checker-form-must-include-a-reset-button-that-clears-all-inputs-and-the-result-and-a-check-entry-submit-button-that-triggers-evaluation-inputs-should-be-validated-numeric-fields-must-be-positive-numbers-rsi-must-be-0-100-atr-must-be-0-show-inline-validation-errors-in-english-if-the-user-submits-with-missing-or-invalid-values",
+      "featureTitle": "The Trade Entry Checker form must include a 'Reset' button that clears all inputs and the result, and a 'Check Entry' submit button that triggers evaluation. Inputs should be validated: numeric fields must be positive numbers, RSI must be 0–100, ATR must be > 0. Show inline validation errors in English if the user submits with missing or invalid values.",
+      "files": [
+        "frontend/src/components/TradeEntryChecker.tsx"
+      ],
+      "components": [
+        "blob-storage@4.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "http-outcalls@3.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-19"
+      ],
+      "confidence": "high"
+    }
+  ]
+}

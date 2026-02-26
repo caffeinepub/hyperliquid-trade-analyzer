@@ -1,0 +1,122 @@
+{
+  "kind": "implementation_plan",
+  "version": "1.0",
+  "title": "Trade Entry Checker – Parameter-based entry signal tool",
+  "requirements": [
+    {
+      "id": "REQ-15",
+      "summary": "Add a new 'Trade Entry Checker' tab/view with parameter input form for trade evaluation",
+      "acceptanceCriteria": [
+        "A new 'Trade Entry Checker' tab is visible in the main navigation.",
+        "The view contains numeric inputs for Current Price, EMA20, EMA50, EMA200, ATR, and RSI.",
+        "A dropdown allows selecting MACD Direction: Bullish, Neutral, or Bearish.",
+        "A toggle or radio allows selecting trade direction: Long or Short.",
+        "All labels, placeholders, and button text are in English."
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/App.tsx",
+          "operation": "modify",
+          "description": "Add a 'Trade Entry Checker' tab to the existing tab navigation system. Insert the new tab between the existing tabs, add state management for the new view, and conditionally render the TradeEntryChecker component when the tab is active. Ensure the tab integrates seamlessly with the existing tab structure and styling."
+        },
+        {
+          "path": "frontend/src/components/TradeEntryChecker.tsx",
+          "operation": "create",
+          "description": "Create the main Trade Entry Checker component containing a form with the following inputs: Asset Name (text), Current Price (number), EMA20 (number), EMA50 (number), EMA200 (number), RSI (number with 0-100 validation), ATR (number, must be > 0), MACD Direction (dropdown: Bullish/Neutral/Bearish), and Trade Direction (radio: Long/Short). Include 'Check Entry' submit button and 'Reset' button. Implement form state management with React hooks. All labels and UI text must be in English. Use shadcn/ui components (Input, Select, RadioGroup, Button, Label) for consistent styling with the existing app."
+        },
+        {
+          "path": "frontend/src/lib/tradeEntryRules.ts",
+          "operation": "create",
+          "description": "Create a utility module containing TypeScript interfaces for trade entry parameters (TradeEntryParams with fields: assetName, currentPrice, ema20, ema50, ema200, rsi, atr, macdDirection, tradeDirection) and evaluation results (EntryEvaluationResult with fields: conditionResults array, passedCount, verdict, summaryMessage). Export validation functions for each input field (validateRSI, validateATR, validatePrice, validateEMA) that return validation error messages or null if valid."
+        }
+      ]
+    },
+    {
+      "id": "REQ-16",
+      "summary": "Implement frontend rule engine to evaluate entry conditions and display checklist with pass/fail indicators",
+      "acceptanceCriteria": [
+        "After submitting the form, each of the four conditions is shown as a labeled checklist row with a green checkmark (pass) or red cross (fail) icon.",
+        "The number of conditions met is counted and displayed (e.g., '3 / 4 conditions met').",
+        "If all 4 conditions pass, a prominent green 'Entry looks good – proceed with caution' message is shown.",
+        "If 3 conditions pass, a yellow 'Marginal setup – wait for better confirmation' message is shown.",
+        "If 2 or fewer conditions pass, a red 'Do not enter – setup not confirmed' message is shown.",
+        "The overextension check uses the ATR value: entry is flagged if Current Price > EMA20 + 1×ATR (Long) or Current Price < EMA20 − 1×ATR (Short)."
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/lib/tradeEntryRules.ts",
+          "operation": "modify",
+          "description": "Add the core evaluation logic function evaluateEntryConditions that takes TradeEntryParams and returns EntryEvaluationResult. For Long trades, evaluate: (1) EMA trend alignment (EMA20 > EMA50 > EMA200), (2) Price proximity (currentPrice <= ema20 + 1*atr), (3) RSI not overbought (rsi < 65), (4) MACD is Bullish or Neutral. For Short trades, evaluate: (1) EMA trend alignment (EMA20 < EMA50 < EMA200), (2) Price proximity (currentPrice >= ema20 - 1*atr), (3) RSI not oversold (rsi > 35), (4) MACD is Bearish or Neutral. Return an array of condition results with pass/fail status, condition label, and details. Calculate passedCount and determine verdict ('go', 'wait', 'no-go') based on conditions met (4 = go, 3 = wait, <=2 = no-go)."
+        },
+        {
+          "path": "frontend/src/components/TradeEntryChecker.tsx",
+          "operation": "modify",
+          "description": "Add state to store the evaluation results. When the form is submitted, call evaluateEntryConditions from tradeEntryRules and store the result. Render the EntryChecklistResults component (to be created) below the form when results are available, passing the evaluation result as props. Clear results when the Reset button is clicked."
+        },
+        {
+          "path": "frontend/src/components/EntryChecklistResults.tsx",
+          "operation": "create",
+          "description": "Create a component that receives EntryEvaluationResult as props and displays the checklist. Show a count badge displaying 'X / 4 conditions met'. Render each condition as a row with a condition label, pass/fail icon (green checkmark using CheckCircle2 from lucide-react for pass, red X using XCircle for fail), and condition details. Below the checklist, display the overall verdict message with appropriate color coding: green background for 'go' verdict ('Entry looks good – proceed with caution'), yellow/amber for 'wait' ('Marginal setup – wait for better confirmation'), red for 'no-go' ('Do not enter – setup not confirmed'). Use shadcn/ui Card and Badge components for consistent styling."
+        }
+      ]
+    },
+    {
+      "id": "REQ-17",
+      "summary": "Display plain-English explanations for each failed condition",
+      "acceptanceCriteria": [
+        "Each failed condition has a corresponding explanation text rendered beneath the checklist.",
+        "Passed conditions show no extra explanation text (or a brief green confirmation).",
+        "All explanation texts are in English.",
+        "Explanations reference the actual input values where meaningful (e.g., 'RSI is 72, which is above the 65 threshold')."
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/lib/tradeEntryRules.ts",
+          "operation": "modify",
+          "description": "Extend the condition result objects to include a failureExplanation field (string or null). For each failed condition, generate a contextual explanation using the actual parameter values. For example, if RSI >= 65 on Long, set failureExplanation to 'RSI is {rsi}, which is overbought (≥65) – wait for RSI to pull back below 60 before entering.' If price is overextended (Long: currentPrice > ema20 + atr), set explanation to 'Price is overextended above EMA20 – wait for a pullback to EMA20 level before entering.' For Short overextension (currentPrice < ema20 - atr), explain similarly. For EMA misalignment, describe the expected order. For MACD mismatch, explain the required direction. Set failureExplanation to null for passed conditions."
+        },
+        {
+          "path": "frontend/src/components/EntryChecklistResults.tsx",
+          "operation": "modify",
+          "description": "For each condition row that failed (pass === false), render the failureExplanation text below the condition label in a subdued text style (text-muted-foreground). Use a smaller font size and left padding to visually nest the explanation under the condition. For passed conditions, optionally show a brief green 'Confirmed' or checkmark without additional text. Ensure all explanation text is in English and references the actual values from the evaluation."
+        }
+      ]
+    },
+    {
+      "id": "REQ-18",
+      "summary": "Add visual summary card showing trade direction, asset, and overall verdict with traffic-light color coding",
+      "acceptanceCriteria": [
+        "A summary card is displayed above the checklist after evaluation.",
+        "The card shows the asset name entered by the user.",
+        "The card shows the selected direction (Long in green tones, Short in red tones).",
+        "The verdict badge is green for 'Go', yellow for 'Wait', and red for 'No-Go'.",
+        "The card is rendered before the per-condition checklist."
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/components/EntryChecklistResults.tsx",
+          "operation": "modify",
+          "description": "Add an EntrySummaryCard section at the top of the results display, before the condition checklist. Display the asset name in a prominent heading. Show the trade direction with a colored badge: green/emerald tones for 'Long', red tones for 'Short' using shadcn/ui Badge with appropriate variant. Display the overall verdict ('Go', 'Wait', 'No-Go') in a large, colored badge with traffic-light semantics: green (emerald) for Go, yellow (amber) for Wait, red for No-Go. Include an icon for each verdict (CheckCircle2 for Go, AlertCircle for Wait, XCircle for No-Go from lucide-react). Use shadcn/ui Card component with a distinct border or background to make the summary card stand out from the checklist below."
+        }
+      ]
+    },
+    {
+      "id": "REQ-19",
+      "summary": "Add form validation with Reset and Check Entry buttons and inline error messages",
+      "acceptanceCriteria": [
+        "Submitting with any empty required field shows an inline error message next to that field.",
+        "Submitting with RSI outside 0–100 shows an inline error.",
+        "Submitting with ATR ≤ 0 shows an inline error.",
+        "The Reset button clears all fields and hides the results panel.",
+        "The Check Entry button triggers evaluation and scrolls/focuses the results."
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/components/TradeEntryChecker.tsx",
+          "operation": "modify",
+          "description": "Add validation state management (errors object mapping field names to error messages). On form submission, validate all required fields using the validation functions from tradeEntryRules.ts before calling evaluateEntryConditions. Check that all numeric fields are non-empty positive numbers, RSI is between 0 and 100 inclusive, and ATR is greater than 0. If any validation fails, populate the errors object and display inline error messages in red text below each invalid field using shadcn/ui form error styling. Prevent evaluation and display of results until all validations pass. When Reset is clicked, clear all form inputs, clear validation errors, and hide the results panel. After successful Check Entry submission, use a ref and scrollIntoView to scroll the results panel into view smoothly. Ensure all error messages are in English (e.g., 'RSI must be between 0 and 100', 'ATR must be greater than 0', 'This field is required')."
+        }
+      ]
+    }
+  ]
+}
