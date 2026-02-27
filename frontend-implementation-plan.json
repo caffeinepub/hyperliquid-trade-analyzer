@@ -1,120 +1,113 @@
 {
   "kind": "implementation_plan",
   "version": "1.0",
-  "title": "Trade Entry Checker – Parameter-based entry signal tool",
+  "title": "Add Timeframe Selector to Trade Entry Checker with Timeframe-Adapted Indicators",
   "requirements": [
     {
-      "id": "REQ-15",
-      "summary": "Add a new 'Trade Entry Checker' tab/view with parameter input form for trade evaluation",
+      "id": "REQ-20",
+      "summary": "Add a Timeframe selector (1m, 15m, 1h) to the Trade Entry Checker form, defaulting to 1m, and display it prominently near the top before indicator inputs.",
       "acceptanceCriteria": [
-        "A new 'Trade Entry Checker' tab is visible in the main navigation.",
-        "The view contains numeric inputs for Current Price, EMA20, EMA50, EMA200, ATR, and RSI.",
-        "A dropdown allows selecting MACD Direction: Bullish, Neutral, or Bearish.",
-        "A toggle or radio allows selecting trade direction: Long or Short.",
-        "All labels, placeholders, and button text are in English."
-      ],
-      "file_operations": [
-        {
-          "path": "frontend/src/App.tsx",
-          "operation": "modify",
-          "description": "Add a 'Trade Entry Checker' tab to the existing tab navigation system. Insert the new tab between the existing tabs, add state management for the new view, and conditionally render the TradeEntryChecker component when the tab is active. Ensure the tab integrates seamlessly with the existing tab structure and styling."
-        },
-        {
-          "path": "frontend/src/components/TradeEntryChecker.tsx",
-          "operation": "create",
-          "description": "Create the main Trade Entry Checker component containing a form with the following inputs: Asset Name (text), Current Price (number), EMA20 (number), EMA50 (number), EMA200 (number), RSI (number with 0-100 validation), ATR (number, must be > 0), MACD Direction (dropdown: Bullish/Neutral/Bearish), and Trade Direction (radio: Long/Short). Include 'Check Entry' submit button and 'Reset' button. Implement form state management with React hooks. All labels and UI text must be in English. Use shadcn/ui components (Input, Select, RadioGroup, Button, Label) for consistent styling with the existing app."
-        },
-        {
-          "path": "frontend/src/lib/tradeEntryRules.ts",
-          "operation": "create",
-          "description": "Create a utility module containing TypeScript interfaces for trade entry parameters (TradeEntryParams with fields: assetName, currentPrice, ema20, ema50, ema200, rsi, atr, macdDirection, tradeDirection) and evaluation results (EntryEvaluationResult with fields: conditionResults array, passedCount, verdict, summaryMessage). Export validation functions for each input field (validateRSI, validateATR, validatePrice, validateEMA) that return validation error messages or null if valid."
-        }
-      ]
-    },
-    {
-      "id": "REQ-16",
-      "summary": "Implement frontend rule engine to evaluate entry conditions and display checklist with pass/fail indicators",
-      "acceptanceCriteria": [
-        "After submitting the form, each of the four conditions is shown as a labeled checklist row with a green checkmark (pass) or red cross (fail) icon.",
-        "The number of conditions met is counted and displayed (e.g., '3 / 4 conditions met').",
-        "If all 4 conditions pass, a prominent green 'Entry looks good – proceed with caution' message is shown.",
-        "If 3 conditions pass, a yellow 'Marginal setup – wait for better confirmation' message is shown.",
-        "If 2 or fewer conditions pass, a red 'Do not enter – setup not confirmed' message is shown.",
-        "The overextension check uses the ATR value: entry is flagged if Current Price > EMA20 + 1×ATR (Long) or Current Price < EMA20 − 1×ATR (Short)."
-      ],
-      "file_operations": [
-        {
-          "path": "frontend/src/lib/tradeEntryRules.ts",
-          "operation": "modify",
-          "description": "Add the core evaluation logic function evaluateEntryConditions that takes TradeEntryParams and returns EntryEvaluationResult. For Long trades, evaluate: (1) EMA trend alignment (EMA20 > EMA50 > EMA200), (2) Price proximity (currentPrice <= ema20 + 1*atr), (3) RSI not overbought (rsi < 65), (4) MACD is Bullish or Neutral. For Short trades, evaluate: (1) EMA trend alignment (EMA20 < EMA50 < EMA200), (2) Price proximity (currentPrice >= ema20 - 1*atr), (3) RSI not oversold (rsi > 35), (4) MACD is Bearish or Neutral. Return an array of condition results with pass/fail status, condition label, and details. Calculate passedCount and determine verdict ('go', 'wait', 'no-go') based on conditions met (4 = go, 3 = wait, <=2 = no-go)."
-        },
-        {
-          "path": "frontend/src/components/TradeEntryChecker.tsx",
-          "operation": "modify",
-          "description": "Add state to store the evaluation results. When the form is submitted, call evaluateEntryConditions from tradeEntryRules and store the result. Render the EntryChecklistResults component (to be created) below the form when results are available, passing the evaluation result as props. Clear results when the Reset button is clicked."
-        },
-        {
-          "path": "frontend/src/components/EntryChecklistResults.tsx",
-          "operation": "create",
-          "description": "Create a component that receives EntryEvaluationResult as props and displays the checklist. Show a count badge displaying 'X / 4 conditions met'. Render each condition as a row with a condition label, pass/fail icon (green checkmark using CheckCircle2 from lucide-react for pass, red X using XCircle for fail), and condition details. Below the checklist, display the overall verdict message with appropriate color coding: green background for 'go' verdict ('Entry looks good – proceed with caution'), yellow/amber for 'wait' ('Marginal setup – wait for better confirmation'), red for 'no-go' ('Do not enter – setup not confirmed'). Use shadcn/ui Card and Badge components for consistent styling."
-        }
-      ]
-    },
-    {
-      "id": "REQ-17",
-      "summary": "Display plain-English explanations for each failed condition",
-      "acceptanceCriteria": [
-        "Each failed condition has a corresponding explanation text rendered beneath the checklist.",
-        "Passed conditions show no extra explanation text (or a brief green confirmation).",
-        "All explanation texts are in English.",
-        "Explanations reference the actual input values where meaningful (e.g., 'RSI is 72, which is above the 65 threshold')."
-      ],
-      "file_operations": [
-        {
-          "path": "frontend/src/lib/tradeEntryRules.ts",
-          "operation": "modify",
-          "description": "Extend the condition result objects to include a failureExplanation field (string or null). For each failed condition, generate a contextual explanation using the actual parameter values. For example, if RSI >= 65 on Long, set failureExplanation to 'RSI is {rsi}, which is overbought (≥65) – wait for RSI to pull back below 60 before entering.' If price is overextended (Long: currentPrice > ema20 + atr), set explanation to 'Price is overextended above EMA20 – wait for a pullback to EMA20 level before entering.' For Short overextension (currentPrice < ema20 - atr), explain similarly. For EMA misalignment, describe the expected order. For MACD mismatch, explain the required direction. Set failureExplanation to null for passed conditions."
-        },
-        {
-          "path": "frontend/src/components/EntryChecklistResults.tsx",
-          "operation": "modify",
-          "description": "For each condition row that failed (pass === false), render the failureExplanation text below the condition label in a subdued text style (text-muted-foreground). Use a smaller font size and left padding to visually nest the explanation under the condition. For passed conditions, optionally show a brief green 'Confirmed' or checkmark without additional text. Ensure all explanation text is in English and references the actual values from the evaluation."
-        }
-      ]
-    },
-    {
-      "id": "REQ-18",
-      "summary": "Add visual summary card showing trade direction, asset, and overall verdict with traffic-light color coding",
-      "acceptanceCriteria": [
-        "A summary card is displayed above the checklist after evaluation.",
-        "The card shows the asset name entered by the user.",
-        "The card shows the selected direction (Long in green tones, Short in red tones).",
-        "The verdict badge is green for 'Go', yellow for 'Wait', and red for 'No-Go'.",
-        "The card is rendered before the per-condition checklist."
-      ],
-      "file_operations": [
-        {
-          "path": "frontend/src/components/EntryChecklistResults.tsx",
-          "operation": "modify",
-          "description": "Add an EntrySummaryCard section at the top of the results display, before the condition checklist. Display the asset name in a prominent heading. Show the trade direction with a colored badge: green/emerald tones for 'Long', red tones for 'Short' using shadcn/ui Badge with appropriate variant. Display the overall verdict ('Go', 'Wait', 'No-Go') in a large, colored badge with traffic-light semantics: green (emerald) for Go, yellow (amber) for Wait, red for No-Go. Include an icon for each verdict (CheckCircle2 for Go, AlertCircle for Wait, XCircle for No-Go from lucide-react). Use shadcn/ui Card component with a distinct border or background to make the summary card stand out from the checklist below."
-        }
-      ]
-    },
-    {
-      "id": "REQ-19",
-      "summary": "Add form validation with Reset and Check Entry buttons and inline error messages",
-      "acceptanceCriteria": [
-        "Submitting with any empty required field shows an inline error message next to that field.",
-        "Submitting with RSI outside 0–100 shows an inline error.",
-        "Submitting with ATR ≤ 0 shows an inline error.",
-        "The Reset button clears all fields and hides the results panel.",
-        "The Check Entry button triggers evaluation and scrolls/focuses the results."
+        "The Trade Entry Checker form includes a 'Timeframe' selector with exactly three options: 1m, 15m, 1h.",
+        "The default selected timeframe is 1m.",
+        "The selected timeframe is visually highlighted (e.g., button group or segmented control).",
+        "Changing the timeframe updates the form's indicator labels and hints without clearing already-entered values."
       ],
       "file_operations": [
         {
           "path": "frontend/src/components/TradeEntryChecker.tsx",
           "operation": "modify",
-          "description": "Add validation state management (errors object mapping field names to error messages). On form submission, validate all required fields using the validation functions from tradeEntryRules.ts before calling evaluateEntryConditions. Check that all numeric fields are non-empty positive numbers, RSI is between 0 and 100 inclusive, and ATR is greater than 0. If any validation fails, populate the errors object and display inline error messages in red text below each invalid field using shadcn/ui form error styling. Prevent evaluation and display of results until all validations pass. When Reset is clicked, clear all form inputs, clear validation errors, and hide the results panel. After successful Check Entry submission, use a ref and scrollIntoView to scroll the results panel into view smoothly. Ensure all error messages are in English (e.g., 'RSI must be between 0 and 100', 'ATR must be greater than 0', 'This field is required')."
+          "description": "Add a timeframe state variable (defaulting to '1m') and render a segmented control/button group for selecting 1m, 15m, or 1h at the top of the form, before the asset input. Use shadcn/ui Tabs or ToggleGroup component to provide visual highlighting of the selected timeframe. Ensure the timeframe state is preserved when indicator values change and is reset to '1m' when the form is reset."
+        }
+      ]
+    },
+    {
+      "id": "REQ-21",
+      "summary": "Conditionally render EMA input fields based on selected timeframe: EMA9/EMA21 for 1m; EMA20/EMA50/EMA200 for 15m and 1h. Update field labels accordingly.",
+      "acceptanceCriteria": [
+        "For timeframe=1m: the form shows EMA9 and EMA21 fields only (no EMA50, no EMA200).",
+        "For timeframe=15m and 1h: the form shows EMA20, EMA50, and EMA200 fields.",
+        "Field labels clearly reflect the EMA period (e.g., 'EMA9', 'EMA21', 'EMA20', etc.).",
+        "Switching timeframes updates the visible EMA fields immediately."
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/components/TradeEntryChecker.tsx",
+          "operation": "modify",
+          "description": "Add conditional rendering logic to the EMA input section based on the timeframe state. For timeframe === '1m', render Input fields labeled 'EMA9' and 'EMA21' with separate state variables (ema9, ema21). For timeframe === '15m' or '1h', render Input fields labeled 'EMA20', 'EMA50', and 'EMA200' using the existing ema20/ema50/ema200 state variables. Store separate state for each EMA period to preserve values when switching timeframes. Update field placeholders and labels to match the EMA period."
+        }
+      ]
+    },
+    {
+      "id": "REQ-22",
+      "summary": "Hide the MACD Direction input for 1m timeframe and display an informational note explaining MACD is not recommended for 1-minute charts. Show MACD for 15m and 1h.",
+      "acceptanceCriteria": [
+        "For timeframe=1m: the MACD Direction dropdown is hidden and replaced with an informational note in English.",
+        "For timeframe=15m and 1h: the MACD Direction dropdown is shown as before.",
+        "The informational note is short and in English."
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/components/TradeEntryChecker.tsx",
+          "operation": "modify",
+          "description": "Wrap the MACD Direction Select component in a conditional block. For timeframe === '1m', hide the Select and render an Alert or info Card component (using shadcn/ui Alert) with the message: 'MACD is not recommended for 1m charts due to excessive noise.' For timeframe === '15m' or '1h', display the existing MACD Direction dropdown as normal. Ensure the macdDirection state is preserved for 15m/1h when switching back from 1m."
+        }
+      ]
+    },
+    {
+      "id": "REQ-23",
+      "summary": "Adapt the ATR field behavior and hint based on timeframe: for 1m mark it optional with a specific note; for 15m and 1h keep it required with the standard description.",
+      "acceptanceCriteria": [
+        "For timeframe=1m: ATR field is labeled as optional and displays a note: 'On 1m charts, ATR is only useful as a market activity indicator, not for SL/TP. Leave blank if not available.'",
+        "For timeframe=15m and 1h: ATR is required and the standard description is shown.",
+        "Validation does not block submission on 1m if ATR is left blank."
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/components/TradeEntryChecker.tsx",
+          "operation": "modify",
+          "description": "Update the ATR Input field label and helper text based on the timeframe state. For timeframe === '1m', add '(optional)' to the label and display helper text: 'On 1m charts, ATR is only useful as a market activity indicator, not for SL/TP. Leave blank if not available.' For timeframe === '15m' or '1h', use the existing required label and standard ATR description. Adjust the form validation logic to skip ATR requirement when timeframe === '1m'."
+        }
+      ]
+    },
+    {
+      "id": "REQ-24",
+      "summary": "Update the rule engine in tradeEntryRules.ts to evaluate conditions based on the selected timeframe, using different EMA periods, RSI thresholds, and MACD rules for 1m vs 15m/1h.",
+      "acceptanceCriteria": [
+        "For timeframe=1m: rule engine evaluates EMA9/EMA21 alignment, optional ATR proximity to EMA9, and RSI < 75 (Long) / RSI > 25 (Short). MACD is not evaluated.",
+        "For timeframe=15m and 1h: rule engine evaluates EMA20 > EMA50 > EMA200 alignment (Long), price within 1× ATR of EMA20, RSI < 65 (Long) / RSI > 35 (Short), and MACD direction.",
+        "The checklist in EntryChecklistResults reflects only the applicable conditions for the selected timeframe.",
+        "Failed condition explanations reference the correct EMA periods and RSI thresholds for the timeframe."
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/lib/tradeEntryRules.ts",
+          "operation": "modify",
+          "description": "Add a new required parameter 'timeframe' (type: '1m' | '15m' | '1h') to the evaluateTradeEntryConditions function signature. Update the function body to branch on timeframe: For '1m': evaluate EMA9 > EMA21 (Long) or EMA9 < EMA21 (Short) alignment; if ATR is provided, check current price is within 1× ATR of EMA9, else skip proximity check; check RSI < 75 (Long) or RSI > 25 (Short); omit MACD condition. For '15m' and '1h': use the existing logic with EMA20 > EMA50 > EMA200, price within 1× ATR of EMA20, RSI < 65 (Long) / > 35 (Short), and MACD direction. Update condition descriptions and explanations to reference the correct EMA periods and RSI thresholds for the selected timeframe. Return only the applicable conditions in the checklist array based on timeframe."
+        },
+        {
+          "path": "frontend/src/components/TradeEntryChecker.tsx",
+          "operation": "modify",
+          "description": "Update the handleSubmit function to pass the selected timeframe and the appropriate EMA values to evaluateTradeEntryConditions. For timeframe === '1m', pass ema9 and ema21 as parameters. For timeframe === '15m' or '1h', pass ema20, ema50, and ema200. Ensure the function call signature matches the updated tradeEntryRules.ts interface and correctly maps form state to the rule engine parameters."
+        }
+      ]
+    },
+    {
+      "id": "REQ-25",
+      "summary": "Display the selected timeframe in the Trade Entry Checker results summary card alongside the asset name and trade direction badge.",
+      "acceptanceCriteria": [
+        "The summary verdict card in EntryChecklistResults shows the timeframe (e.g., '1m', '15m', '1h') as a label or badge.",
+        "The timeframe label is always visible when results are displayed."
+      ],
+      "file_operations": [
+        {
+          "path": "frontend/src/components/EntryChecklistResults.tsx",
+          "operation": "modify",
+          "description": "Add a new required prop 'timeframe' (type: string) to the EntryChecklistResults component interface. In the summary card header, render the timeframe as a Badge component (using shadcn/ui Badge) positioned near the asset name and direction badge. Use a neutral or secondary badge variant to visually distinguish it from the verdict badge. Ensure the timeframe is always visible when the results component is displayed."
+        },
+        {
+          "path": "frontend/src/components/TradeEntryChecker.tsx",
+          "operation": "modify",
+          "description": "Pass the current timeframe state value as a prop to the EntryChecklistResults component when rendering the results after form submission. Ensure the timeframe prop is always provided and reflects the timeframe used for the evaluation."
         }
       ]
     }

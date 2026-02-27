@@ -11,7 +11,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { TrendingUp, RotateCcw, Search } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { TrendingUp, RotateCcw, Search, Info } from 'lucide-react';
 import EntryChecklistResults from './EntryChecklistResults';
 import {
   evaluateEntryConditions,
@@ -23,11 +24,16 @@ import {
   type EntryEvaluationResult,
   type MACDDirection,
   type TradeDirection,
+  type Timeframe,
 } from '@/lib/tradeEntryRules';
 
 interface FormValues {
   assetName: string;
   currentPrice: string;
+  // 1m fields
+  ema9: string;
+  ema21: string;
+  // 15m/1h fields
   ema20: string;
   ema50: string;
   ema200: string;
@@ -40,6 +46,8 @@ interface FormValues {
 interface FormErrors {
   assetName?: string;
   currentPrice?: string;
+  ema9?: string;
+  ema21?: string;
   ema20?: string;
   ema50?: string;
   ema200?: string;
@@ -50,6 +58,8 @@ interface FormErrors {
 const defaultValues: FormValues = {
   assetName: '',
   currentPrice: '',
+  ema9: '',
+  ema21: '',
   ema20: '',
   ema50: '',
   ema200: '',
@@ -59,18 +69,31 @@ const defaultValues: FormValues = {
   tradeDirection: 'Long',
 };
 
+const TIMEFRAMES: { value: Timeframe; label: string }[] = [
+  { value: '1m', label: '1m' },
+  { value: '15m', label: '15m' },
+  { value: '1h', label: '1h' },
+];
+
 export default function TradeEntryChecker() {
+  const [timeframe, setTimeframe] = useState<Timeframe>('1m');
   const [form, setForm] = useState<FormValues>(defaultValues);
   const [errors, setErrors] = useState<FormErrors>({});
   const [result, setResult] = useState<EntryEvaluationResult | null>(null);
+  const [submittedTimeframe, setSubmittedTimeframe] = useState<Timeframe>('1m');
   const resultsRef = useRef<HTMLDivElement>(null);
 
   const handleChange = (field: keyof FormValues, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
-    // Clear error on change
     if (errors[field as keyof FormErrors]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
+  };
+
+  const handleTimeframeChange = (tf: Timeframe) => {
+    setTimeframe(tf);
+    // Clear errors when switching timeframe, but preserve entered values
+    setErrors({});
   };
 
   const validate = (): boolean => {
@@ -82,20 +105,32 @@ export default function TradeEntryChecker() {
     const priceErr = validatePrice(form.currentPrice);
     if (priceErr) newErrors.currentPrice = priceErr;
 
-    const ema20Err = validateEMA(form.ema20, 'EMA20');
-    if (ema20Err) newErrors.ema20 = ema20Err;
+    if (timeframe === '1m') {
+      const ema9Err = validateEMA(form.ema9, 'EMA9');
+      if (ema9Err) newErrors.ema9 = ema9Err;
 
-    const ema50Err = validateEMA(form.ema50, 'EMA50');
-    if (ema50Err) newErrors.ema50 = ema50Err;
+      const ema21Err = validateEMA(form.ema21, 'EMA21');
+      if (ema21Err) newErrors.ema21 = ema21Err;
 
-    const ema200Err = validateEMA(form.ema200, 'EMA200');
-    if (ema200Err) newErrors.ema200 = ema200Err;
+      // ATR is optional on 1m
+      const atrErr = validateATR(form.atr, true);
+      if (atrErr) newErrors.atr = atrErr;
+    } else {
+      const ema20Err = validateEMA(form.ema20, 'EMA20');
+      if (ema20Err) newErrors.ema20 = ema20Err;
+
+      const ema50Err = validateEMA(form.ema50, 'EMA50');
+      if (ema50Err) newErrors.ema50 = ema50Err;
+
+      const ema200Err = validateEMA(form.ema200, 'EMA200');
+      if (ema200Err) newErrors.ema200 = ema200Err;
+
+      const atrErr = validateATR(form.atr);
+      if (atrErr) newErrors.atr = atrErr;
+    }
 
     const rsiErr = validateRSI(form.rsi);
     if (rsiErr) newErrors.rsi = rsiErr;
-
-    const atrErr = validateATR(form.atr);
-    if (atrErr) newErrors.atr = atrErr;
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -105,27 +140,44 @@ export default function TradeEntryChecker() {
     e.preventDefault();
     if (!validate()) return;
 
-    const evalResult = evaluateEntryConditions({
-      assetName: form.assetName.trim(),
-      currentPrice: parseFloat(form.currentPrice),
-      ema20: parseFloat(form.ema20),
-      ema50: parseFloat(form.ema50),
-      ema200: parseFloat(form.ema200),
-      rsi: parseFloat(form.rsi),
-      atr: parseFloat(form.atr),
-      macdDirection: form.macdDirection,
-      tradeDirection: form.tradeDirection,
-    });
+    let evalResult: EntryEvaluationResult;
 
+    if (timeframe === '1m') {
+      evalResult = evaluateEntryConditions({
+        timeframe: '1m',
+        assetName: form.assetName.trim(),
+        currentPrice: parseFloat(form.currentPrice),
+        ema9: parseFloat(form.ema9),
+        ema21: parseFloat(form.ema21),
+        rsi: parseFloat(form.rsi),
+        atr: form.atr.trim() !== '' ? parseFloat(form.atr) : undefined,
+        tradeDirection: form.tradeDirection,
+      });
+    } else {
+      evalResult = evaluateEntryConditions({
+        timeframe: timeframe,
+        assetName: form.assetName.trim(),
+        currentPrice: parseFloat(form.currentPrice),
+        ema20: parseFloat(form.ema20),
+        ema50: parseFloat(form.ema50),
+        ema200: parseFloat(form.ema200),
+        rsi: parseFloat(form.rsi),
+        atr: parseFloat(form.atr),
+        macdDirection: form.macdDirection,
+        tradeDirection: form.tradeDirection,
+      });
+    }
+
+    setSubmittedTimeframe(timeframe);
     setResult(evalResult);
 
-    // Scroll to results
     setTimeout(() => {
       resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 50);
   };
 
   const handleReset = () => {
+    setTimeframe('1m');
     setForm(defaultValues);
     setErrors({});
     setResult(null);
@@ -155,6 +207,46 @@ export default function TradeEntryChecker() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-5">
+
+            {/* Timeframe Selector */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Timeframe</Label>
+              <div className="flex gap-2">
+                {TIMEFRAMES.map((tf) => (
+                  <button
+                    key={tf.value}
+                    type="button"
+                    onClick={() => handleTimeframeChange(tf.value)}
+                    className={`
+                      flex-1 py-2 px-4 rounded-md text-sm font-semibold font-mono border transition-all duration-150
+                      ${
+                        timeframe === tf.value
+                          ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                          : 'bg-background text-muted-foreground border-border hover:border-primary/50 hover:text-foreground'
+                      }
+                    `}
+                  >
+                    {tf.label}
+                  </button>
+                ))}
+              </div>
+              {timeframe === '1m' && (
+                <p className="text-xs text-muted-foreground">
+                  1m uses EMA9/EMA21 for fast execution timing. MACD is omitted (too noisy on 1m).
+                </p>
+              )}
+              {timeframe === '15m' && (
+                <p className="text-xs text-muted-foreground">
+                  15m uses EMA20/EMA50/EMA200 for trend confirmation with MACD and ATR.
+                </p>
+              )}
+              {timeframe === '1h' && (
+                <p className="text-xs text-muted-foreground">
+                  1h uses EMA20/EMA50/EMA200 for higher-timeframe trend analysis with MACD and ATR.
+                </p>
+              )}
+            </div>
+
             {/* Trade Direction */}
             <div className="space-y-2">
               <Label className="text-sm font-medium">Trade Direction</Label>
@@ -221,9 +313,10 @@ export default function TradeEntryChecker() {
                 )}
               </div>
 
+              {/* ATR field — optional on 1m, required on 15m/1h */}
               <div className="space-y-1.5">
                 <Label htmlFor="atr" className="text-sm font-medium">
-                  ATR (Average True Range)
+                  ATR{timeframe === '1m' ? ' (optional)' : ''}
                 </Label>
                 <Input
                   id="atr"
@@ -235,64 +328,105 @@ export default function TradeEntryChecker() {
                   className={errors.atr ? 'border-red-500' : ''}
                 />
                 {errors.atr && <p className="text-xs text-red-400">{errors.atr}</p>}
-              </div>
-            </div>
-
-            {/* EMA Row */}
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="ema20" className="text-sm font-medium">
-                  EMA 20
-                </Label>
-                <Input
-                  id="ema20"
-                  type="number"
-                  step="any"
-                  placeholder="e.g. 88.90"
-                  value={form.ema20}
-                  onChange={(e) => handleChange('ema20', e.target.value)}
-                  className={errors.ema20 ? 'border-red-500' : ''}
-                />
-                {errors.ema20 && <p className="text-xs text-red-400">{errors.ema20}</p>}
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="ema50" className="text-sm font-medium">
-                  EMA 50
-                </Label>
-                <Input
-                  id="ema50"
-                  type="number"
-                  step="any"
-                  placeholder="e.g. 87.50"
-                  value={form.ema50}
-                  onChange={(e) => handleChange('ema50', e.target.value)}
-                  className={errors.ema50 ? 'border-red-500' : ''}
-                />
-                {errors.ema50 && <p className="text-xs text-red-400">{errors.ema50}</p>}
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="ema200" className="text-sm font-medium">
-                  EMA 200
-                </Label>
-                <Input
-                  id="ema200"
-                  type="number"
-                  step="any"
-                  placeholder="e.g. 85.00"
-                  value={form.ema200}
-                  onChange={(e) => handleChange('ema200', e.target.value)}
-                  className={errors.ema200 ? 'border-red-500' : ''}
-                />
-                {errors.ema200 && (
-                  <p className="text-xs text-red-400">{errors.ema200}</p>
+                {timeframe === '1m' && !errors.atr && (
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    On 1m charts, ATR is only useful as a market activity indicator, not for SL/TP. Leave blank if not available.
+                  </p>
                 )}
               </div>
             </div>
 
+            {/* EMA Fields — conditional on timeframe */}
+            {timeframe === '1m' ? (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="ema9" className="text-sm font-medium">
+                    EMA 9
+                  </Label>
+                  <Input
+                    id="ema9"
+                    type="number"
+                    step="any"
+                    placeholder="e.g. 88.95"
+                    value={form.ema9}
+                    onChange={(e) => handleChange('ema9', e.target.value)}
+                    className={errors.ema9 ? 'border-red-500' : ''}
+                  />
+                  {errors.ema9 && <p className="text-xs text-red-400">{errors.ema9}</p>}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="ema21" className="text-sm font-medium">
+                    EMA 21
+                  </Label>
+                  <Input
+                    id="ema21"
+                    type="number"
+                    step="any"
+                    placeholder="e.g. 88.70"
+                    value={form.ema21}
+                    onChange={(e) => handleChange('ema21', e.target.value)}
+                    className={errors.ema21 ? 'border-red-500' : ''}
+                  />
+                  {errors.ema21 && <p className="text-xs text-red-400">{errors.ema21}</p>}
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="ema20" className="text-sm font-medium">
+                    EMA 20
+                  </Label>
+                  <Input
+                    id="ema20"
+                    type="number"
+                    step="any"
+                    placeholder="e.g. 88.90"
+                    value={form.ema20}
+                    onChange={(e) => handleChange('ema20', e.target.value)}
+                    className={errors.ema20 ? 'border-red-500' : ''}
+                  />
+                  {errors.ema20 && <p className="text-xs text-red-400">{errors.ema20}</p>}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="ema50" className="text-sm font-medium">
+                    EMA 50
+                  </Label>
+                  <Input
+                    id="ema50"
+                    type="number"
+                    step="any"
+                    placeholder="e.g. 87.50"
+                    value={form.ema50}
+                    onChange={(e) => handleChange('ema50', e.target.value)}
+                    className={errors.ema50 ? 'border-red-500' : ''}
+                  />
+                  {errors.ema50 && <p className="text-xs text-red-400">{errors.ema50}</p>}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="ema200" className="text-sm font-medium">
+                    EMA 200
+                  </Label>
+                  <Input
+                    id="ema200"
+                    type="number"
+                    step="any"
+                    placeholder="e.g. 85.00"
+                    value={form.ema200}
+                    onChange={(e) => handleChange('ema200', e.target.value)}
+                    className={errors.ema200 ? 'border-red-500' : ''}
+                  />
+                  {errors.ema200 && (
+                    <p className="text-xs text-red-400">{errors.ema200}</p>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* RSI + MACD Row */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className={`grid gap-4 ${timeframe === '1m' ? 'grid-cols-1' : 'grid-cols-2'}`}>
               <div className="space-y-1.5">
                 <Label htmlFor="rsi" className="text-sm font-medium">
                   RSI (0–100)
@@ -309,26 +443,41 @@ export default function TradeEntryChecker() {
                   className={errors.rsi ? 'border-red-500' : ''}
                 />
                 {errors.rsi && <p className="text-xs text-red-400">{errors.rsi}</p>}
+                {timeframe === '1m' && !errors.rsi && (
+                  <p className="text-xs text-muted-foreground">
+                    On 1m: RSI &lt; 75 for Long, RSI &gt; 25 for Short.
+                  </p>
+                )}
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="macd" className="text-sm font-medium">
-                  MACD Direction
-                </Label>
-                <Select
-                  value={form.macdDirection}
-                  onValueChange={(v) => handleChange('macdDirection', v as MACDDirection)}
-                >
-                  <SelectTrigger id="macd">
-                    <SelectValue placeholder="Select MACD direction" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Bullish">📈 Bullish</SelectItem>
-                    <SelectItem value="Neutral">➡ Neutral</SelectItem>
-                    <SelectItem value="Bearish">📉 Bearish</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* MACD — hidden on 1m */}
+              {timeframe !== '1m' ? (
+                <div className="space-y-1.5">
+                  <Label htmlFor="macd" className="text-sm font-medium">
+                    MACD Direction
+                  </Label>
+                  <Select
+                    value={form.macdDirection}
+                    onValueChange={(v) => handleChange('macdDirection', v as MACDDirection)}
+                  >
+                    <SelectTrigger id="macd">
+                      <SelectValue placeholder="Select MACD direction" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Bullish">📈 Bullish</SelectItem>
+                      <SelectItem value="Neutral">➡ Neutral</SelectItem>
+                      <SelectItem value="Bearish">📉 Bearish</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <Alert className="border-border/50 bg-muted/30 col-span-1">
+                  <Info className="h-4 w-4 text-muted-foreground" />
+                  <AlertDescription className="text-xs text-muted-foreground">
+                    MACD is not recommended for 1m charts due to excessive noise. It is omitted from the 1m evaluation.
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
 
             {/* Buttons */}
@@ -354,7 +503,7 @@ export default function TradeEntryChecker() {
       {/* Results */}
       {result && (
         <div ref={resultsRef}>
-          <EntryChecklistResults result={result} />
+          <EntryChecklistResults result={result} timeframe={submittedTimeframe} />
         </div>
       )}
     </div>

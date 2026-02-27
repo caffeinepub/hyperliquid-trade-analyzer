@@ -2,93 +2,8 @@
   "kind": "feature_evidence_report",
   "features": [
     {
-      "featureId": "feature-add-a-new-trade-entry-checker-tab-view-in-the-app-alongside-the-existing-tabs-in-app-tsx-that-allows-the-user-to-input-the-following-parameters-for-a-potential-trade-current-price-ema20-ema50-ema200-rsi-0-100-atr-absolute-value-macd-direction-dropdown-bullish-neutral-bearish-and-trade-direction-long-short-all-input-labels-and-ui-text-must-be-in-english",
-      "featureTitle": "Add a new 'Trade Entry Checker' tab/view in the app (alongside the existing tabs in App.tsx) that allows the user to input the following parameters for a potential trade: Current Price, EMA20, EMA50, EMA200, RSI (0–100), ATR (absolute value), MACD Direction (dropdown: Bullish / Neutral / Bearish), and Trade Direction (Long / Short). All input labels and UI text must be in English.",
-      "files": [
-        "frontend/src/App.tsx",
-        "frontend/src/components/TradeEntryChecker.tsx",
-        "frontend/src/lib/tradeEntryRules.ts"
-      ],
-      "components": [
-        "blob-storage@4.0.0",
-        "core-infrastructure@1.0.2",
-        "shadcn-ui@1.0.0",
-        "build-template-react@1.0.0",
-        "initial-app@1.0.0",
-        "http-outcalls@3.0.0",
-        "github-export-icp-cli@1.0.0"
-      ],
-      "testIds": [
-        "REQ-15"
-      ],
-      "confidence": "high"
-    },
-    {
-      "featureId": "feature-implement-a-purely-frontend-rule-engine-that-evaluates-the-submitted-parameters-and-produces-a-clear-entry-recommendation-for-long-entries-evaluate-1-ema-trend-alignment-ema20-ema50-ema200-2-price-proximity-current-price-is-within-1-atr-above-ema20-not-overextended-3-rsi-not-overbought-rsi-65-4-macd-direction-is-bullish-or-neutral-for-short-entries-mirror-the-conditions-ema20-ema50-ema200-price-within-1-atr-below-ema20-rsi-35-macd-bearish-or-neutral-each-condition-is-evaluated-independently-and-displayed-as-a-checklist-row-with-a-pass-fail-indicator",
-      "featureTitle": "Implement a purely frontend rule engine that evaluates the submitted parameters and produces a clear entry recommendation. For Long entries evaluate: (1) EMA trend alignment: EMA20 > EMA50 > EMA200; (2) Price proximity: Current Price is within 1× ATR above EMA20 (not overextended); (3) RSI not overbought: RSI < 65; (4) MACD Direction is Bullish or Neutral. For Short entries mirror the conditions (EMA20 < EMA50 < EMA200, price within 1× ATR below EMA20, RSI > 35, MACD Bearish or Neutral). Each condition is evaluated independently and displayed as a checklist row with a pass/fail indicator.",
-      "files": [
-        "frontend/src/components/EntryChecklistResults.tsx",
-        "frontend/src/components/TradeEntryChecker.tsx",
-        "frontend/src/lib/tradeEntryRules.ts"
-      ],
-      "components": [
-        "blob-storage@4.0.0",
-        "core-infrastructure@1.0.2",
-        "shadcn-ui@1.0.0",
-        "build-template-react@1.0.0",
-        "initial-app@1.0.0",
-        "http-outcalls@3.0.0",
-        "github-export-icp-cli@1.0.0"
-      ],
-      "testIds": [
-        "REQ-16"
-      ],
-      "confidence": "high"
-    },
-    {
-      "featureId": "feature-below-the-checklist-display-a-short-plain-english-explanation-for-each-failed-condition-describing-why-it-disqualifies-the-entry-and-what-the-user-should-wait-for-for-example-if-rsi-65-on-a-long-show-rsi-is-overbought-65-wait-for-rsi-to-pull-back-below-60-before-entering-if-price-is-overextended-beyond-1-atr-above-ema20-show-price-is-overextended-above-ema20-wait-for-a-pullback-to-ema20-level-before-entering",
-      "featureTitle": "Below the checklist, display a short plain-English explanation for each failed condition describing why it disqualifies the entry and what the user should wait for. For example: if RSI ≥ 65 on a Long, show 'RSI is overbought (≥65) – wait for RSI to pull back below 60 before entering.' If price is overextended beyond 1× ATR above EMA20, show 'Price is overextended above EMA20 – wait for a pullback to EMA20 level before entering.'",
-      "files": [
-        "frontend/src/components/EntryChecklistResults.tsx",
-        "frontend/src/lib/tradeEntryRules.ts"
-      ],
-      "components": [
-        "blob-storage@4.0.0",
-        "core-infrastructure@1.0.2",
-        "shadcn-ui@1.0.0",
-        "build-template-react@1.0.0",
-        "initial-app@1.0.0",
-        "http-outcalls@3.0.0",
-        "github-export-icp-cli@1.0.0"
-      ],
-      "testIds": [
-        "REQ-17"
-      ],
-      "confidence": "high"
-    },
-    {
-      "featureId": "feature-add-a-visual-summary-card-at-the-top-of-the-trade-entry-checker-results-that-shows-the-selected-trade-direction-long-short-with-a-colored-badge-the-asset-implied-by-the-inputs-free-text-asset-name-input-field-added-to-the-form-and-the-overall-verdict-go-wait-no-go-with-traffic-light-color-coding-green-yellow-red-and-a-matching-icon",
-      "featureTitle": "Add a visual summary card at the top of the Trade Entry Checker results that shows: the selected trade direction (Long/Short) with a colored badge, the asset implied by the inputs (free-text asset name input field added to the form), and the overall verdict (Go / Wait / No-Go) with traffic-light color coding (green / yellow / red) and a matching icon.",
-      "files": [
-        "frontend/src/components/EntryChecklistResults.tsx"
-      ],
-      "components": [
-        "blob-storage@4.0.0",
-        "core-infrastructure@1.0.2",
-        "shadcn-ui@1.0.0",
-        "build-template-react@1.0.0",
-        "initial-app@1.0.0",
-        "http-outcalls@3.0.0",
-        "github-export-icp-cli@1.0.0"
-      ],
-      "testIds": [
-        "REQ-18"
-      ],
-      "confidence": "high"
-    },
-    {
-      "featureId": "feature-the-trade-entry-checker-form-must-include-a-reset-button-that-clears-all-inputs-and-the-result-and-a-check-entry-submit-button-that-triggers-evaluation-inputs-should-be-validated-numeric-fields-must-be-positive-numbers-rsi-must-be-0-100-atr-must-be-0-show-inline-validation-errors-in-english-if-the-user-submits-with-missing-or-invalid-values",
-      "featureTitle": "The Trade Entry Checker form must include a 'Reset' button that clears all inputs and the result, and a 'Check Entry' submit button that triggers evaluation. Inputs should be validated: numeric fields must be positive numbers, RSI must be 0–100, ATR must be > 0. Show inline validation errors in English if the user submits with missing or invalid values.",
+      "featureId": "feature-add-a-timeframe-selector-to-the-trade-entry-checker-form-with-options-1m-15m-and-1h-default-the-selection-to-1m-the-user-s-most-used-timeframe-display-the-selector-prominently-near-the-top-of-the-form-before-the-indicator-inputs",
+      "featureTitle": "Add a 'Timeframe' selector to the Trade Entry Checker form with options: 1m, 15m, and 1h. Default the selection to 1m (the user's most-used timeframe). Display the selector prominently near the top of the form, before the indicator inputs.",
       "files": [
         "frontend/src/components/TradeEntryChecker.tsx"
       ],
@@ -102,7 +17,109 @@
         "github-export-icp-cli@1.0.0"
       ],
       "testIds": [
-        "REQ-19"
+        "REQ-20"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-when-the-selected-timeframe-is-1m-replace-the-ema20-ema50-ema200-inputs-with-ema9-and-ema21-inputs-as-these-are-the-relevant-fast-emas-for-1-minute-charts-hide-the-ema200-field-for-1m-show-ema20-ema50-ema200-for-15m-and-1h-timeframes-update-all-field-labels-accordingly",
+      "featureTitle": "When the selected timeframe is 1m, replace the EMA20/EMA50/EMA200 inputs with EMA9 and EMA21 inputs (as these are the relevant fast EMAs for 1-minute charts). Hide the EMA200 field for 1m. Show EMA20, EMA50, EMA200 for 15m and 1h timeframes. Update all field labels accordingly.",
+      "files": [
+        "frontend/src/components/TradeEntryChecker.tsx"
+      ],
+      "components": [
+        "blob-storage@4.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "http-outcalls@3.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-21"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-for-the-1m-timeframe-remove-the-macd-direction-input-from-the-trade-entry-checker-form-as-macd-is-not-recommended-for-1-minute-charts-too-slow-too-noisy-display-a-short-informational-note-explaining-this-omission-e-g-macd-is-not-recommended-for-1m-charts-due-to-excessive-noise-for-15m-and-1h-keep-the-macd-direction-dropdown",
+      "featureTitle": "For the 1m timeframe, remove the MACD Direction input from the Trade Entry Checker form, as MACD is not recommended for 1-minute charts (too slow, too noisy). Display a short informational note explaining this omission (e.g., 'MACD is not recommended for 1m charts due to excessive noise.'). For 15m and 1h, keep the MACD Direction dropdown.",
+      "files": [
+        "frontend/src/components/TradeEntryChecker.tsx"
+      ],
+      "components": [
+        "blob-storage@4.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "http-outcalls@3.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-22"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-adapt-the-atr-interpretation-hint-shown-in-the-trade-entry-checker-form-based-on-the-selected-timeframe-for-1m-show-a-note-that-atr-on-1m-is-only-useful-as-an-activity-filter-not-for-sl-tp-calculation-and-is-optional-for-15m-and-1h-keep-the-standard-atr-description-the-atr-input-field-should-be-marked-as-optional-for-1m-and-required-for-15m-1h",
+      "featureTitle": "Adapt the ATR interpretation hint shown in the Trade Entry Checker form based on the selected timeframe. For 1m: show a note that ATR on 1m is only useful as an activity filter (not for SL/TP calculation) and is optional. For 15m and 1h: keep the standard ATR description. The ATR input field should be marked as optional for 1m and required for 15m/1h.",
+      "files": [
+        "frontend/src/components/TradeEntryChecker.tsx"
+      ],
+      "components": [
+        "blob-storage@4.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "http-outcalls@3.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-23"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-update-the-rule-engine-in-tradeentryrules-ts-or-equivalent-to-evaluate-conditions-based-on-the-selected-timeframe-for-1m-evaluate-1-ema9-ema21-alignment-long-or-ema9-ema21-short-2-price-proximity-current-price-within-1-atr-of-ema9-if-atr-provided-else-skip-the-proximity-check-3-rsi-extremes-use-tighter-thresholds-rsi-75-for-long-not-overbought-rsi-25-for-short-not-oversold-macd-condition-is-omitted-for-1m-for-15m-use-ema20-ema50-ema200-alignment-rsi-thresholds-65-35-and-macd-as-before-for-1h-same-as-15m",
+      "featureTitle": "Update the rule engine in tradeEntryRules.ts (or equivalent) to evaluate conditions based on the selected timeframe. For 1m: evaluate (1) EMA9 > EMA21 alignment (Long) or EMA9 < EMA21 (Short); (2) Price proximity: current price within 1× ATR of EMA9 (if ATR provided), else skip the proximity check; (3) RSI extremes use tighter thresholds: RSI < 75 for Long (not overbought), RSI > 25 for Short (not oversold). MACD condition is omitted for 1m. For 15m: use EMA20/EMA50/EMA200 alignment, RSI thresholds < 65 / > 35, and MACD as before. For 1h: same as 15m.",
+      "files": [
+        "frontend/src/components/TradeEntryChecker.tsx",
+        "frontend/src/lib/tradeEntryRules.ts"
+      ],
+      "components": [
+        "blob-storage@4.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "http-outcalls@3.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-24"
+      ],
+      "confidence": "high"
+    },
+    {
+      "featureId": "feature-display-the-selected-timeframe-in-the-trade-entry-checker-results-summary-card-alongside-the-asset-name-and-trade-direction-badge-so-the-user-always-sees-which-timeframe-the-verdict-was-calculated-for",
+      "featureTitle": "Display the selected timeframe in the Trade Entry Checker results summary card (alongside the asset name and trade direction badge), so the user always sees which timeframe the verdict was calculated for.",
+      "files": [
+        "frontend/src/components/EntryChecklistResults.tsx",
+        "frontend/src/components/TradeEntryChecker.tsx"
+      ],
+      "components": [
+        "blob-storage@4.0.0",
+        "core-infrastructure@1.0.2",
+        "shadcn-ui@1.0.0",
+        "build-template-react@1.0.0",
+        "initial-app@1.0.0",
+        "http-outcalls@3.0.0",
+        "github-export-icp-cli@1.0.0"
+      ],
+      "testIds": [
+        "REQ-25"
       ],
       "confidence": "high"
     }

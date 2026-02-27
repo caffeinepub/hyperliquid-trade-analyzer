@@ -5,10 +5,11 @@ import type { EntryEvaluationResult } from '@/lib/tradeEntryRules';
 
 interface EntryChecklistResultsProps {
   result: EntryEvaluationResult;
+  timeframe: string;
 }
 
-export default function EntryChecklistResults({ result }: EntryChecklistResultsProps) {
-  const { conditionResults, passedCount, verdict, summaryMessage, params } = result;
+export default function EntryChecklistResults({ result, timeframe }: EntryChecklistResultsProps) {
+  const { conditionResults, passedCount, totalConditions, verdict, summaryMessage, params } = result;
 
   const verdictConfig = {
     go: {
@@ -47,7 +48,7 @@ export default function EntryChecklistResults({ result }: EntryChecklistResultsP
       <Card className={`border ${vc.bg}`}>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between flex-wrap gap-3">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               {vc.icon}
               <CardTitle className={`text-xl font-bold ${vc.text}`}>
                 {params.assetName}
@@ -57,10 +58,14 @@ export default function EntryChecklistResults({ result }: EntryChecklistResultsP
               >
                 {directionConfig.label}
               </span>
+              {/* Timeframe badge */}
+              <Badge variant="secondary" className="text-xs font-mono font-semibold px-2 py-0.5">
+                {timeframe}
+              </Badge>
             </div>
             <div className="flex items-center gap-3">
               <span className="text-sm text-muted-foreground">
-                {passedCount} / 4 conditions met
+                {passedCount} / {totalConditions} conditions met
               </span>
               <Badge className={`text-sm px-3 py-1 font-bold ${vc.badge}`}>
                 {vc.label}

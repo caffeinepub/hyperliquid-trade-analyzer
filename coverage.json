@@ -1,77 +1,82 @@
 {
   "kind": "coverage_report",
   "version": "1.0",
-  "generatedAt": "2026-02-26T10:34:12.397Z",
+  "generatedAt": "2026-02-27T22:27:57.212Z",
   "sources": {
     "buildRequest": true,
     "implementationPlan": true
   },
   "requirements": {
-    "total": 5,
-    "implemented": 5,
+    "total": 6,
+    "implemented": 6,
     "items": [
       {
-        "id": "REQ-15",
-        "summary": "Add a new 'Trade Entry Checker' tab/view in the app (alongside the existing tabs in App.tsx) that allows the user to input the following parameters for a potential trade: Current Price, EMA20, EMA50, EMA200, RSI (0–100), ATR (absolute value), MACD Direction (dropdown: Bullish / Neutral / Bearish), and Trade Direction (Long / Short). All input labels and UI text must be in English.",
-        "status": "implemented",
-        "plannedFiles": [
-          "frontend/src/App.tsx",
-          "frontend/src/components/TradeEntryChecker.tsx",
-          "frontend/src/lib/tradeEntryRules.ts"
-        ],
-        "matchedFiles": [
-          "frontend/src/App.tsx",
-          "frontend/src/components/TradeEntryChecker.tsx",
-          "frontend/src/lib/tradeEntryRules.ts"
-        ]
-      },
-      {
-        "id": "REQ-16",
-        "summary": "Implement a purely frontend rule engine that evaluates the submitted parameters and produces a clear entry recommendation. For Long entries evaluate: (1) EMA trend alignment: EMA20 > EMA50 > EMA200; (2) Price proximity: Current Price is within 1× ATR above EMA20 (not overextended); (3) RSI not overbought: RSI < 65; (4) MACD Direction is Bullish or Neutral. For Short entries mirror the conditions (EMA20 < EMA50 < EMA200, price within 1× ATR below EMA20, RSI > 35, MACD Bearish or Neutral). Each condition is evaluated independently and displayed as a checklist row with a pass/fail indicator.",
-        "status": "implemented",
-        "plannedFiles": [
-          "frontend/src/lib/tradeEntryRules.ts",
-          "frontend/src/components/TradeEntryChecker.tsx",
-          "frontend/src/components/EntryChecklistResults.tsx"
-        ],
-        "matchedFiles": [
-          "frontend/src/lib/tradeEntryRules.ts",
-          "frontend/src/components/TradeEntryChecker.tsx",
-          "frontend/src/components/EntryChecklistResults.tsx"
-        ]
-      },
-      {
-        "id": "REQ-17",
-        "summary": "Below the checklist, display a short plain-English explanation for each failed condition describing why it disqualifies the entry and what the user should wait for. For example: if RSI ≥ 65 on a Long, show 'RSI is overbought (≥65) – wait for RSI to pull back below 60 before entering.' If price is overextended beyond 1× ATR above EMA20, show 'Price is overextended above EMA20 – wait for a pullback to EMA20 level before entering.'",
-        "status": "implemented",
-        "plannedFiles": [
-          "frontend/src/lib/tradeEntryRules.ts",
-          "frontend/src/components/EntryChecklistResults.tsx"
-        ],
-        "matchedFiles": [
-          "frontend/src/lib/tradeEntryRules.ts",
-          "frontend/src/components/EntryChecklistResults.tsx"
-        ]
-      },
-      {
-        "id": "REQ-18",
-        "summary": "Add a visual summary card at the top of the Trade Entry Checker results that shows: the selected trade direction (Long/Short) with a colored badge, the asset implied by the inputs (free-text asset name input field added to the form), and the overall verdict (Go / Wait / No-Go) with traffic-light color coding (green / yellow / red) and a matching icon.",
-        "status": "implemented",
-        "plannedFiles": [
-          "frontend/src/components/EntryChecklistResults.tsx"
-        ],
-        "matchedFiles": [
-          "frontend/src/components/EntryChecklistResults.tsx"
-        ]
-      },
-      {
-        "id": "REQ-19",
-        "summary": "The Trade Entry Checker form must include a 'Reset' button that clears all inputs and the result, and a 'Check Entry' submit button that triggers evaluation. Inputs should be validated: numeric fields must be positive numbers, RSI must be 0–100, ATR must be > 0. Show inline validation errors in English if the user submits with missing or invalid values.",
+        "id": "REQ-20",
+        "summary": "Add a 'Timeframe' selector to the Trade Entry Checker form with options: 1m, 15m, and 1h. Default the selection to 1m (the user's most-used timeframe). Display the selector prominently near the top of the form, before the indicator inputs.",
         "status": "implemented",
         "plannedFiles": [
           "frontend/src/components/TradeEntryChecker.tsx"
         ],
         "matchedFiles": [
+          "frontend/src/components/TradeEntryChecker.tsx"
+        ]
+      },
+      {
+        "id": "REQ-21",
+        "summary": "When the selected timeframe is 1m, replace the EMA20/EMA50/EMA200 inputs with EMA9 and EMA21 inputs (as these are the relevant fast EMAs for 1-minute charts). Hide the EMA200 field for 1m. Show EMA20, EMA50, EMA200 for 15m and 1h timeframes. Update all field labels accordingly.",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/components/TradeEntryChecker.tsx"
+        ],
+        "matchedFiles": [
+          "frontend/src/components/TradeEntryChecker.tsx"
+        ]
+      },
+      {
+        "id": "REQ-22",
+        "summary": "For the 1m timeframe, remove the MACD Direction input from the Trade Entry Checker form, as MACD is not recommended for 1-minute charts (too slow, too noisy). Display a short informational note explaining this omission (e.g., 'MACD is not recommended for 1m charts due to excessive noise.'). For 15m and 1h, keep the MACD Direction dropdown.",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/components/TradeEntryChecker.tsx"
+        ],
+        "matchedFiles": [
+          "frontend/src/components/TradeEntryChecker.tsx"
+        ]
+      },
+      {
+        "id": "REQ-23",
+        "summary": "Adapt the ATR interpretation hint shown in the Trade Entry Checker form based on the selected timeframe. For 1m: show a note that ATR on 1m is only useful as an activity filter (not for SL/TP calculation) and is optional. For 15m and 1h: keep the standard ATR description. The ATR input field should be marked as optional for 1m and required for 15m/1h.",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/components/TradeEntryChecker.tsx"
+        ],
+        "matchedFiles": [
+          "frontend/src/components/TradeEntryChecker.tsx"
+        ]
+      },
+      {
+        "id": "REQ-24",
+        "summary": "Update the rule engine in tradeEntryRules.ts (or equivalent) to evaluate conditions based on the selected timeframe. For 1m: evaluate (1) EMA9 > EMA21 alignment (Long) or EMA9 < EMA21 (Short); (2) Price proximity: current price within 1× ATR of EMA9 (if ATR provided), else skip the proximity check; (3) RSI extremes use tighter thresholds: RSI < 75 for Long (not overbought), RSI > 25 for Short (not oversold). MACD condition is omitted for 1m. For 15m: use EMA20/EMA50/EMA200 alignment, RSI thresholds < 65 / > 35, and MACD as before. For 1h: same as 15m.",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/lib/tradeEntryRules.ts",
+          "frontend/src/components/TradeEntryChecker.tsx"
+        ],
+        "matchedFiles": [
+          "frontend/src/lib/tradeEntryRules.ts",
+          "frontend/src/components/TradeEntryChecker.tsx"
+        ]
+      },
+      {
+        "id": "REQ-25",
+        "summary": "Display the selected timeframe in the Trade Entry Checker results summary card (alongside the asset name and trade direction badge), so the user always sees which timeframe the verdict was calculated for.",
+        "status": "implemented",
+        "plannedFiles": [
+          "frontend/src/components/EntryChecklistResults.tsx",
+          "frontend/src/components/TradeEntryChecker.tsx"
+        ],
+        "matchedFiles": [
+          "frontend/src/components/EntryChecklistResults.tsx",
           "frontend/src/components/TradeEntryChecker.tsx"
         ]
       }
@@ -79,12 +84,9 @@
   },
   "changedFiles": [
     "build-request.json",
-    "build-template/README.md",
-    "caffeine.lock.json",
     "feature_evidence.json",
     "frontend-file-summaries.txt",
     "frontend-implementation-plan.json",
-    "frontend/src/App.tsx",
     "frontend/src/components/EntryChecklistResults.tsx",
     "frontend/src/components/TradeEntryChecker.tsx",
     "frontend/src/lib/tradeEntryRules.ts",
