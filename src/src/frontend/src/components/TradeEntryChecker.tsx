@@ -37,14 +37,7 @@ import {
   validatePrice,
   validateRSI,
 } from "@/lib/tradeEntryRules";
-import {
-  BookOpen,
-  ExternalLink,
-  Info,
-  RotateCcw,
-  Search,
-  TrendingUp,
-} from "lucide-react";
+import { BookOpen, Info, RotateCcw, Search, TrendingUp } from "lucide-react";
 import { useRef, useState } from "react";
 import EntryChecklistResults from "./EntryChecklistResults";
 
@@ -795,35 +788,9 @@ export default function TradeEntryChecker() {
                   optional
                 </Badge>
               </div>
-              <div className="flex flex-wrap gap-2 mt-1">
-                <a
-                  href="https://hyperliquid-dash.org"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border border-border/60 bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <ExternalLink className="h-3 w-3" />
-                  HyperDash (OI, Liq)
-                </a>
-                <a
-                  href="https://kiyotaka.ai"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border border-border/60 bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <ExternalLink className="h-3 w-3" />
-                  Kiyotaka (Liq-Cluster)
-                </a>
-                <a
-                  href="https://app.hyperliquid.xyz"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border border-border/60 bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <ExternalLink className="h-3 w-3" />
-                  Hyperliquid (OI, Funding)
-                </a>
-              </div>
+              <p className="text-xs text-muted-foreground">
+                Werte von HyperDash, Kiyotaka oder TradingView ablesen
+              </p>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {/* OI Direction */}
                 <div className="space-y-1.5">
