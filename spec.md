@@ -1,38 +1,71 @@
 # Hyperliquid Trade Analyzer
 
 ## Current State
-Der Entry Checker fragt bereits nach Timeframe, EMA, RSI, MACD, ATR, Orderbook-Imbalance und Volumen. Die Ergebnisse zeigen eine Checkliste plus TWAP-Empfehlung. Die Logik liegt in `src/frontend/src/lib/tradeEntryRules.ts`.
+
+Der Entry Checker (`TradeEntryChecker.tsx` + `tradeEntryRules.ts`) hat derzeit viele manuelle Eingabefelder:
+- EMA9/21 oder EMA20/50/200 als separate numerische Felder (3–5 Zahlenwerte)
+- Orderbook Block: Bid/Ask Spread, Imbalance, Volumen (alle manuell)
+- Orderflow Block: OI, Futures CVD, Spot CVD, Funding, Liquidationen (alle manuell)
+- Links zu HyperDash, Kiyotaka, Hyperliquid
+
+Problem: Der User muss 3 Plattformen (HyperDash, Kiyotaka, Hyperliquid) abfragen, was zu viel Zeit kostet und die Daten bis zur Eingabe bereits veraltet sind.
 
 ## Requested Changes (Diff)
 
 ### Add
-- **Orderflow-Block** im Entry Checker Formular mit 5 neuen Eingabefeldern (alle optional):
-  - OI-Richtung: steigt / neutral / fällt
-  - Futures CVD: bullish / neutral / bearish
-  - Spot CVD: bullish / neutral / bearish
-  - Funding Rate: stark positiv / neutral / stark negativ
-  - Liquidationen in der Nähe: Ja (Longs) / Nein / Ja (Shorts)
-- **Orderflow-Pattern-Erkennung** in der Bewertungslogik – erkennt automatisch folgende Muster:
-  - Leverage Pump Trap: Preis ↑ + OI ↑ + Futures CVD bullish + Spot CVD neutral/bearish → Warnung, kein Long
-  - Short Squeeze Setup: OI ↑ + Funding negativ + Spot CVD bullish → bullisches Signal
-  - Versteckte Akkumulation: Preis fällt + OI ↑ + Spot CVD bullish → bullisches Signal
-  - Starker Trend: OI ↑ + Futures CVD + Spot CVD beide bullish → bestätigt Long
-  - Starker Downtrend: OI ↑ + Futures CVD + Spot CVD beide bearish → bestätigt Short
-  - Short Covering (fragil): OI ↓ + Futures CVD bullish + Spot CVD neutral → schwacher Bounce
-  - Long Liquidation Dump (Reversal-Zone): OI ↓ + Spot CVD neutral → mögliches Reversal
-- **Orderflow Result Card** in `EntryChecklistResults.tsx` – zeigt erkanntes Muster mit Farbe/Icon und kurzer Erklärung, was es bedeutet
-- Neue Typen: `OIDirection`, `CVDSignal`, `FundingLevel`, `LiquidationsNear` in tradeEntryRules.ts
-- Orderflow-Felder in `EntryEvaluationResult` (optionales `orderflowPattern`-Objekt mit `patternName`, `signal: 'bullish'|'bearish'|'neutral'|'warning'`, `explanation`)
+- `src/frontend/src/lib/hyperliquidApi.ts`: Neue Utility-Datei mit `fetchHyperliquidLiveData(coin: string)` Funktion
+  - POST https://api.hyperliquid.xyz/info mit `{"type": "metaAndAssetCtxs"}` → Mark-Preis, OI, Funding Rate
+  - POST https://api.hyperliquid.xyz/info mit `{"type": "recentTrades", "coin": coin}` → CVD-Berechnung (Buy-Volumen minus Sell-Volumen)
+  - Klassifiziert OI-Richtung (rising/neutral/falling), Funding Level (strongPositive/neutral/strongNegative), CVD Signal
+- Loading-State und Fehlermeldung für den API-Fetch im Entry Checker
+- "Lade Live-Daten" Button der alle HL-Felder automatisch befüllt
 
 ### Modify
-- `tradeEntryRules.ts`: Neue optionale Orderflow-Felder in beiden Params-Interfaces; `evaluateEntryConditions` gibt zusätzlich `orderflowPattern` zurück
-- `TradeEntryChecker.tsx`: Neuen Orderflow-Section-Block ins Formular einfügen (unterhalb Orderbook & Volumen, optional, mit Info-Icon)
-- `EntryChecklistResults.tsx`: Neue Orderflow-Karte zwischen Checkliste und TWAP-Karte anzeigen (nur wenn Orderflow-Daten eingegeben wurden)
+- `src/frontend/src/lib/tradeEntryRules.ts`:
+  - Neue vereinfachte Params-Typen: `emaAlignment: "bullish" | "bearish" | "mixed"` ersetzt alle numerischen EMA-Felder
+  - Entfernt: `ema9`, `ema21`, `ema20`, `ema50`, `ema200` aus den Interfaces
+  - Ergänzt: `emaAlignment` als primäres EMA-Signal
+  - Spot CVD entfernen (nicht über HL-API verfügbar, kein HyperDash mehr)
+  - Evaluierungslogik anpassen: EMA-Bedingung prüft `emaAlignment` statt numerische Werte
+- `src/frontend/src/components/TradeEntryChecker.tsx`:
+  - EMA-Block: statt 3–5 numerischer Felder → 1 Dropdown ("Bullish", "Gemischt", "Bearish") mit kurzem Hinweistext was das bedeutet
+  - Auto-Fetch-Block: Asset-Name eingeben → "Lade Live-Daten" Button → füllt Preis, OI, Funding, CVD automatisch
+  - Auto-befüllte Felder zeigen Wert an (read-only, mit grünem Haken), können manuell überschrieben werden
+  - Orderbook-Block: entfernen (zu zeitintensiv für zu wenig Mehrwert)
+  - Orderflow-Block: nur noch OI, Funding, CVD (auto-gefetcht) + Liquidationen (1 Dropdown von Kiyotaka)
+  - HyperDash-Link entfernen, nur noch Kiyotaka-Link
+  - Spot CVD entfernen
+  - Formular-Felder insgesamt auf max. 6–7 manuelle Eingaben reduzieren
+- `src/frontend/src/components/EntryChecklistResults.tsx`: Anpassen für neue Param-Struktur (emaAlignment statt numerische EMAs)
 
 ### Remove
-- Nichts entfernen
+- HyperDash-Link aus dem Entry Checker
+- Spot CVD Eingabefeld
+- Bid/Ask Spread Eingabefeld
+- Orderbook Imbalance Dropdown
+- Volumen Level Dropdown
+- Alle numerischen EMA-Eingabefelder (ema9, ema21, ema20, ema50, ema200)
 
 ## Implementation Plan
-1. `tradeEntryRules.ts`: Neue Typen und Felder hinzufügen, `detectOrderflowPattern()`-Funktion schreiben, in `evaluate1m()` und `evaluate15m1h()` aufrufen
-2. `TradeEntryChecker.tsx`: FormValues und Interfaces erweitern, Orderflow-Section-UI hinzufügen, Submit-Handler anpassen
-3. `EntryChecklistResults.tsx`: Orderflow-Pattern-Karte hinzufügen mit passendem Farbschema je Signal
+
+1. Neue Datei `hyperliquidApi.ts` erstellen mit:
+   - `fetchHyperliquidLiveData(coin)` → ruft beide HL-API-Endpoints auf
+   - OI klassifizieren via 24h-Delta (falls verfügbar) oder openInterest-Wert
+   - Funding Rate: > 0.005% = strongPositive, < -0.005% = strongNegative, sonst neutral
+   - CVD: letzte 100 Trades summieren (buys - sells in Volumen)
+   - Return-Typ: `{ price, oiDirection, fundingLevel, futureCVD, rawFunding, rawOI }`
+
+2. `tradeEntryRules.ts` vereinfachen:
+   - `TradeEntryParams1m` und `TradeEntryParams15m1h` beide auf `emaAlignment` umstellen
+   - EMA-Bedingung: `emaAlignment === "bullish"` für Long, `emaAlignment === "bearish"` für Short
+   - Spot CVD aus `detectOrderflowPattern` entfernen (wird optional/ignored)
+   - Alle anderen Bedingungen bleiben identisch
+
+3. `TradeEntryChecker.tsx` neu strukturieren:
+   - Schritt 1: Asset + Richtung + Zeitrahmen (immer sichtbar)
+   - Schritt 2: Auto-Fetch-Button → befüllt Preis, OI, Funding, CVD
+   - Schritt 3: Chart-Felder (EMA-Dropdown, RSI, ATR, ggf. MACD) — vom HL-Chart ablesen
+   - Schritt 4: Kiyotaka (1 Dropdown: Liquidationscluster) + Link zu kiyotaka.ai
+   - Analyse-Button → Ergebnis anzeigen
+
+4. `EntryChecklistResults.tsx` anpassen für emaAlignment-Ausgabe

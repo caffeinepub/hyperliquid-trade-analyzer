@@ -19,92 +19,79 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  type HyperliquidLiveData,
+  fetchHyperliquidLiveData,
+} from "@/lib/hyperliquidApi";
+import {
   type CVDSignal,
+  type EMAAlignment,
   type EntryEvaluationResult,
   type FundingLevel,
   type LiquidationsNear,
   type MACDDirection,
   type OIDirection,
-  type OrderbookImbalance,
   type RSITimeframe,
   type Timeframe,
   type TradeDirection,
-  type VolumeLevel,
   evaluateEntryConditions,
   validateATR,
   validateAssetName,
-  validateEMA,
   validatePrice,
   validateRSI,
 } from "@/lib/tradeEntryRules";
 import {
-  BookOpen,
+  AlertTriangle,
+  CheckCircle2,
   ExternalLink,
-  Info,
+  Loader2,
+  RefreshCw,
   RotateCcw,
   Search,
   TrendingUp,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { useRef, useState } from "react";
 import EntryChecklistResults from "./EntryChecklistResults";
 
 interface FormValues {
   assetName: string;
+  tradeDirection: TradeDirection;
+  rsiTimeframe: RSITimeframe;
+  // Section 2: auto-fetched or manual
   currentPrice: string;
-  // 1m fields
-  ema9: string;
-  ema21: string;
-  // 15m/1h fields
-  ema20: string;
-  ema50: string;
-  ema200: string;
+  oiDirection: OIDirection | "";
+  fundingLevel: FundingLevel | "";
+  futureCVD: CVDSignal | "";
+  // Section 3: from chart
+  emaAlignment: EMAAlignment | "";
   rsi: string;
   atr: string;
   macdDirection: MACDDirection;
-  tradeDirection: TradeDirection;
-  rsiTimeframe: RSITimeframe;
-  bidAskSpread: string;
-  orderbookImbalance: OrderbookImbalance | "";
-  volumeLevel: VolumeLevel | "";
-  oiDirection: OIDirection | "";
-  futureCVD: CVDSignal | "";
-  spotCVD: CVDSignal | "";
-  fundingLevel: FundingLevel | "";
+  // Section 4: Kiyotaka
   liquidationsNear: LiquidationsNear | "";
 }
 
 interface FormErrors {
   assetName?: string;
   currentPrice?: string;
-  ema9?: string;
-  ema21?: string;
-  ema20?: string;
-  ema50?: string;
-  ema200?: string;
+  emaAlignment?: string;
   rsi?: string;
   atr?: string;
 }
 
 const defaultValues: FormValues = {
   assetName: "",
+  tradeDirection: "Long",
+  rsiTimeframe: "1m",
   currentPrice: "",
-  ema9: "",
-  ema21: "",
-  ema20: "",
-  ema50: "",
-  ema200: "",
+  oiDirection: "",
+  fundingLevel: "",
+  futureCVD: "",
+  emaAlignment: "",
   rsi: "",
   atr: "",
   macdDirection: "Neutral",
-  tradeDirection: "Long",
-  rsiTimeframe: "1m",
-  bidAskSpread: "",
-  orderbookImbalance: "",
-  volumeLevel: "",
-  oiDirection: "",
-  futureCVD: "",
-  spotCVD: "",
-  fundingLevel: "",
   liquidationsNear: "",
 };
 
@@ -114,11 +101,35 @@ const TIMEFRAMES: { value: Timeframe; label: string }[] = [
   { value: "1h", label: "1h" },
 ];
 
-const RSI_TIMEFRAMES: { value: RSITimeframe; label: string }[] = [
-  { value: "1m", label: "1m" },
-  { value: "15m", label: "15m" },
-  { value: "1h", label: "1h" },
-];
+function formatPrice(price: number): string {
+  if (price >= 10000) return price.toFixed(0);
+  if (price >= 1000) return price.toFixed(1);
+  if (price >= 100) return price.toFixed(2);
+  if (price >= 10) return price.toFixed(3);
+  return price.toFixed(4);
+}
+
+function formatFundingRate(rawFunding: number): string {
+  return `${(rawFunding * 100).toFixed(4)}% / 8h`;
+}
+
+const OI_LABELS: Record<string, { label: string; color: string }> = {
+  rising: { label: "OI steigt ↑", color: "text-emerald-400" },
+  neutral: { label: "OI neutral →", color: "text-muted-foreground" },
+  falling: { label: "OI fällt ↓", color: "text-red-400" },
+};
+
+const FUNDING_LABELS: Record<string, { label: string; color: string }> = {
+  strongPositive: { label: "Funding hoch +", color: "text-red-400" },
+  neutral: { label: "Funding neutral", color: "text-muted-foreground" },
+  strongNegative: { label: "Funding negativ −", color: "text-emerald-400" },
+};
+
+const CVD_LABELS: Record<string, { label: string; color: string }> = {
+  bullish: { label: "CVD bullish", color: "text-emerald-400" },
+  neutral: { label: "CVD neutral", color: "text-muted-foreground" },
+  bearish: { label: "CVD bearish", color: "text-red-400" },
+};
 
 export default function TradeEntryChecker() {
   const [timeframe, setTimeframe] = useState<Timeframe>("1m");
@@ -126,10 +137,33 @@ export default function TradeEntryChecker() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [result, setResult] = useState<EntryEvaluationResult | null>(null);
   const [submittedTimeframe, setSubmittedTimeframe] = useState<Timeframe>("1m");
+
+  const [liveDataStatus, setLiveDataStatus] = useState<
+    "idle" | "loading" | "success" | "error"
+  >("idle");
+  const [liveDataError, setLiveDataError] = useState<string>("");
+  const [liveDataRaw, setLiveDataRaw] = useState<HyperliquidLiveData | null>(
+    null,
+  );
+
   const resultsRef = useRef<HTMLDivElement>(null);
 
   const handleChange = (field: keyof FormValues, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+    // Reset live data when asset changes
+    if (field === "assetName") {
+      setLiveDataStatus("idle");
+      setLiveDataRaw(null);
+      setLiveDataError("");
+      setForm((prev) => ({
+        ...prev,
+        assetName: value,
+        currentPrice: "",
+        oiDirection: "",
+        fundingLevel: "",
+        futureCVD: "",
+      }));
+    }
     if (errors[field as keyof FormErrors]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
@@ -137,9 +171,35 @@ export default function TradeEntryChecker() {
 
   const handleTimeframeChange = (tf: Timeframe) => {
     setTimeframe(tf);
-    // Sync RSI timeframe to global timeframe by default
     setForm((prev) => ({ ...prev, rsiTimeframe: tf }));
     setErrors({});
+  };
+
+  const fetchLiveData = async () => {
+    if (!form.assetName.trim()) return;
+    setLiveDataStatus("loading");
+    setLiveDataError("");
+    try {
+      const data = await fetchHyperliquidLiveData(form.assetName);
+      setLiveDataRaw(data);
+      setForm((prev) => ({
+        ...prev,
+        currentPrice: formatPrice(data.price),
+        oiDirection: data.oiDirection,
+        fundingLevel: data.fundingLevel,
+        futureCVD: data.futureCVD,
+      }));
+      setLiveDataStatus("success");
+      // Clear price error if it was set
+      setErrors((prev) => ({ ...prev, currentPrice: undefined }));
+    } catch (err) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Hyperliquid API nicht erreichbar. Bitte Werte manuell eingeben.";
+      setLiveDataError(msg);
+      setLiveDataStatus("error");
+    }
   };
 
   const validate = (): boolean => {
@@ -149,34 +209,24 @@ export default function TradeEntryChecker() {
     if (assetErr) newErrors.assetName = assetErr;
 
     const priceErr = validatePrice(form.currentPrice);
-    if (priceErr) newErrors.currentPrice = priceErr;
+    if (priceErr)
+      newErrors.currentPrice =
+        "Preis erforderlich — Live-Daten laden oder manuell eingeben.";
 
-    if (timeframe === "1m") {
-      const ema9Err = validateEMA(form.ema9, "EMA9");
-      if (ema9Err) newErrors.ema9 = ema9Err;
-
-      const ema21Err = validateEMA(form.ema21, "EMA21");
-      if (ema21Err) newErrors.ema21 = ema21Err;
-
-      // ATR is optional on 1m
-      const atrErr = validateATR(form.atr, true);
-      if (atrErr) newErrors.atr = atrErr;
-    } else {
-      const ema20Err = validateEMA(form.ema20, "EMA20");
-      if (ema20Err) newErrors.ema20 = ema20Err;
-
-      const ema50Err = validateEMA(form.ema50, "EMA50");
-      if (ema50Err) newErrors.ema50 = ema50Err;
-
-      const ema200Err = validateEMA(form.ema200, "EMA200");
-      if (ema200Err) newErrors.ema200 = ema200Err;
-
-      const atrErr = validateATR(form.atr);
-      if (atrErr) newErrors.atr = atrErr;
+    if (!form.emaAlignment) {
+      newErrors.emaAlignment = "EMA-Ausrichtung wählen.";
     }
 
     const rsiErr = validateRSI(form.rsi);
     if (rsiErr) newErrors.rsi = rsiErr;
+
+    if (timeframe === "1m") {
+      const atrErr = validateATR(form.atr, true);
+      if (atrErr) newErrors.atr = atrErr;
+    } else {
+      const atrErr = validateATR(form.atr);
+      if (atrErr) newErrors.atr = atrErr;
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -186,22 +236,10 @@ export default function TradeEntryChecker() {
     e.preventDefault();
     if (!validate()) return;
 
-    const bidAskSpreadVal =
-      form.bidAskSpread.trim() !== ""
-        ? Number.parseFloat(form.bidAskSpread)
-        : undefined;
-    const orderbookImbalanceVal =
-      form.orderbookImbalance !== ""
-        ? (form.orderbookImbalance as OrderbookImbalance)
-        : undefined;
-    const volumeLevelVal =
-      form.volumeLevel !== "" ? (form.volumeLevel as VolumeLevel) : undefined;
     const oiDirectionVal =
       form.oiDirection !== "" ? (form.oiDirection as OIDirection) : undefined;
     const futureCVDVal =
       form.futureCVD !== "" ? (form.futureCVD as CVDSignal) : undefined;
-    const spotCVDVal =
-      form.spotCVD !== "" ? (form.spotCVD as CVDSignal) : undefined;
     const fundingLevelVal =
       form.fundingLevel !== ""
         ? (form.fundingLevel as FundingLevel)
@@ -218,18 +256,13 @@ export default function TradeEntryChecker() {
         timeframe: "1m",
         assetName: form.assetName.trim(),
         currentPrice: Number.parseFloat(form.currentPrice),
-        ema9: Number.parseFloat(form.ema9),
-        ema21: Number.parseFloat(form.ema21),
+        emaAlignment: form.emaAlignment as EMAAlignment,
         rsi: Number.parseFloat(form.rsi),
         atr: form.atr.trim() !== "" ? Number.parseFloat(form.atr) : undefined,
         tradeDirection: form.tradeDirection,
         rsiTimeframe: form.rsiTimeframe,
-        bidAskSpread: bidAskSpreadVal,
-        orderbookImbalance: orderbookImbalanceVal,
-        volumeLevel: volumeLevelVal,
         oiDirection: oiDirectionVal,
         futureCVD: futureCVDVal,
-        spotCVD: spotCVDVal,
         fundingLevel: fundingLevelVal,
         liquidationsNear: liquidationsNearVal,
       });
@@ -238,20 +271,14 @@ export default function TradeEntryChecker() {
         timeframe: timeframe,
         assetName: form.assetName.trim(),
         currentPrice: Number.parseFloat(form.currentPrice),
-        ema20: Number.parseFloat(form.ema20),
-        ema50: Number.parseFloat(form.ema50),
-        ema200: Number.parseFloat(form.ema200),
+        emaAlignment: form.emaAlignment as EMAAlignment,
         rsi: Number.parseFloat(form.rsi),
         atr: Number.parseFloat(form.atr),
         macdDirection: form.macdDirection,
         tradeDirection: form.tradeDirection,
         rsiTimeframe: form.rsiTimeframe,
-        bidAskSpread: bidAskSpreadVal,
-        orderbookImbalance: orderbookImbalanceVal,
-        volumeLevel: volumeLevelVal,
         oiDirection: oiDirectionVal,
         futureCVD: futureCVDVal,
-        spotCVD: spotCVDVal,
         fundingLevel: fundingLevelVal,
         liquidationsNear: liquidationsNearVal,
       });
@@ -273,12 +300,22 @@ export default function TradeEntryChecker() {
     setForm(defaultValues);
     setErrors({});
     setResult(null);
+    setLiveDataStatus("idle");
+    setLiveDataRaw(null);
+    setLiveDataError("");
   };
 
+  const rsiThresholdHint =
+    form.rsiTimeframe === "1m"
+      ? "Grenzwert: < 75 Long / > 25 Short"
+      : form.rsiTimeframe === "15m"
+        ? "Grenzwert: < 65 Long / > 35 Short"
+        : "Grenzwert: < 60 Long / > 40 Short";
+
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-2xl mx-auto space-y-5">
       {/* Header */}
-      <div className="text-center space-y-2">
+      <div className="text-center space-y-1">
         <div className="flex items-center justify-center gap-2 mb-1">
           <TrendingUp className="h-6 w-6 text-primary" />
           <h2 className="text-2xl font-bold text-foreground">
@@ -286,115 +323,32 @@ export default function TradeEntryChecker() {
           </h2>
         </div>
         <p className="text-muted-foreground text-sm max-w-lg mx-auto">
-          Gib deine aktuellen Marktindikatoren ein und die App bewertet, ob das
-          Setup für einen Long- oder Short-Einstieg bereit ist.
+          Live-Daten direkt von Hyperliquid — nur Chart-Daten und Kiyotaka
+          manuell ablesen.
         </p>
       </div>
 
-      {/* Form Card */}
-      <Card className="border border-border/60">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-base font-semibold">
-            Markt-Parameter
-          </CardTitle>
-          <CardDescription className="text-xs">
-            Alle Werte vom aktuellen Chart ablesen (z.B. Hyperliquid,
-            TradingView).
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Timeframe Selector */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Timeframe (Chart)</Label>
-              <div className="flex gap-2">
-                {TIMEFRAMES.map((tf) => (
-                  <button
-                    key={tf.value}
-                    type="button"
-                    data-ocid="checker.timeframe.tab"
-                    onClick={() => handleTimeframeChange(tf.value)}
-                    className={`
-                      flex-1 py-2 px-4 rounded-md text-sm font-semibold font-mono border transition-all duration-150
-                      ${
-                        timeframe === tf.value
-                          ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                          : "bg-background text-muted-foreground border-border hover:border-primary/50 hover:text-foreground"
-                      }
-                    `}
-                  >
-                    {tf.label}
-                  </button>
-                ))}
-              </div>
-              {timeframe === "1m" && (
-                <p className="text-xs text-muted-foreground">
-                  1m nutzt EMA9/EMA21 für schnelles Execution-Timing. MACD
-                  entfällt (zu viel Rauschen).
-                </p>
-              )}
-              {timeframe === "15m" && (
-                <p className="text-xs text-muted-foreground">
-                  15m nutzt EMA20/EMA50/EMA200 für Trendbestätigung mit MACD und
-                  ATR.
-                </p>
-              )}
-              {timeframe === "1h" && (
-                <p className="text-xs text-muted-foreground">
-                  1h nutzt EMA20/EMA50/EMA200 für übergeordnete Trendanalyse mit
-                  MACD und ATR.
-                </p>
-              )}
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* ── SECTION 1: Basis ── */}
+        <Card className="border border-border/60">
+          <CardHeader className="pb-3 pt-4 px-5">
+            <div className="flex items-center gap-2">
+              <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center flex-shrink-0">
+                1
+              </span>
+              <CardTitle className="text-sm font-semibold">Basis</CardTitle>
             </div>
-
-            {/* Trade Direction */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Trade Direction</Label>
-              <RadioGroup
-                value={form.tradeDirection}
-                onValueChange={(v) =>
-                  handleChange("tradeDirection", v as TradeDirection)
-                }
-                className="flex gap-6"
-              >
-                <div className="flex items-center gap-2">
-                  <RadioGroupItem
-                    value="Long"
-                    id="dir-long"
-                    data-ocid="checker.long.radio"
-                  />
-                  <Label
-                    htmlFor="dir-long"
-                    className="text-sm font-medium text-emerald-400 cursor-pointer"
-                  >
-                    ▲ Long
-                  </Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <RadioGroupItem
-                    value="Short"
-                    id="dir-short"
-                    data-ocid="checker.short.radio"
-                  />
-                  <Label
-                    htmlFor="dir-short"
-                    className="text-sm font-medium text-red-400 cursor-pointer"
-                  >
-                    ▼ Short
-                  </Label>
-                </div>
-              </RadioGroup>
-            </div>
-
+          </CardHeader>
+          <CardContent className="px-5 pb-4 space-y-4">
             {/* Asset Name */}
             <div className="space-y-1.5">
               <Label htmlFor="assetName" className="text-sm font-medium">
-                Asset Name
+                Asset
               </Label>
               <Input
                 id="assetName"
                 data-ocid="checker.assetName.input"
-                placeholder="z.B. BTC/USDC, Silver/USDC, BrentOil/USDC"
+                placeholder="z.B. BTC, XAG, BRENTOIL, ETH"
                 value={form.assetName}
                 onChange={(e) => handleChange("assetName", e.target.value)}
                 className={errors.assetName ? "border-red-500" : ""}
@@ -409,36 +363,465 @@ export default function TradeEntryChecker() {
               )}
             </div>
 
-            {/* Price Row */}
+            {/* Direction + Timeframe row */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label htmlFor="currentPrice" className="text-sm font-medium">
-                  Aktueller Preis
-                </Label>
+                <Label className="text-sm font-medium">Richtung</Label>
+                <RadioGroup
+                  value={form.tradeDirection}
+                  onValueChange={(v) =>
+                    handleChange("tradeDirection", v as TradeDirection)
+                  }
+                  className="flex gap-4 pt-1"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <RadioGroupItem
+                      value="Long"
+                      id="dir-long"
+                      data-ocid="checker.long.radio"
+                    />
+                    <Label
+                      htmlFor="dir-long"
+                      className="text-sm font-semibold text-emerald-400 cursor-pointer"
+                    >
+                      ▲ Long
+                    </Label>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <RadioGroupItem
+                      value="Short"
+                      id="dir-short"
+                      data-ocid="checker.short.radio"
+                    />
+                    <Label
+                      htmlFor="dir-short"
+                      className="text-sm font-semibold text-red-400 cursor-pointer"
+                    >
+                      ▼ Short
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Timeframe</Label>
+                <div className="flex gap-1.5">
+                  {TIMEFRAMES.map((tf) => (
+                    <button
+                      key={tf.value}
+                      type="button"
+                      data-ocid="checker.timeframe.tab"
+                      onClick={() => handleTimeframeChange(tf.value)}
+                      className={`
+                        flex-1 py-1.5 px-2 rounded text-xs font-mono font-semibold border transition-all
+                        ${
+                          timeframe === tf.value
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-background text-muted-foreground border-border hover:border-primary/50 hover:text-foreground"
+                        }
+                      `}
+                    >
+                      {tf.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ── SECTION 2: Live-Daten (Hyperliquid API) ── */}
+        <Card className="border border-border/60">
+          <CardHeader className="pb-3 pt-4 px-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center flex-shrink-0">
+                  2
+                </span>
+                <CardTitle className="text-sm font-semibold">
+                  Live-Daten
+                </CardTitle>
+                <Badge
+                  variant="outline"
+                  className="text-xs px-1.5 py-0 text-muted-foreground"
+                >
+                  Hyperliquid API
+                </Badge>
+              </div>
+              {liveDataStatus === "success" && (
+                <div className="flex items-center gap-1 text-xs text-emerald-400">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  <span>Aktuell</span>
+                </div>
+              )}
+              {liveDataStatus === "error" && (
+                <div className="flex items-center gap-1 text-xs text-red-400">
+                  <WifiOff className="h-3.5 w-3.5" />
+                  <span>Manuell</span>
+                </div>
+              )}
+            </div>
+            <CardDescription className="text-xs pl-7">
+              Preis, OI, Funding und CVD werden automatisch geladen.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="px-5 pb-4 space-y-3">
+            {/* Idle state */}
+            {liveDataStatus === "idle" && (
+              <div className="flex flex-col gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={fetchLiveData}
+                  disabled={!form.assetName.trim()}
+                  className="gap-2 w-full sm:w-auto"
+                  data-ocid="checker.live_data.button"
+                >
+                  <Wifi className="h-4 w-4" />
+                  Lade Live-Daten
+                </Button>
+                {!form.assetName.trim() && (
+                  <p className="text-xs text-muted-foreground">
+                    Zuerst Asset-Name eingeben (Abschnitt 1).
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Loading state */}
+            {liveDataStatus === "loading" && (
+              <div
+                className="flex items-center gap-2 text-sm text-muted-foreground"
+                data-ocid="checker.live_data.loading_state"
+              >
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>
+                  Lade Daten für{" "}
+                  <span className="font-mono font-semibold text-foreground">
+                    {form.assetName}
+                  </span>
+                  ...
+                </span>
+              </div>
+            )}
+
+            {/* Success state */}
+            {liveDataStatus === "success" && liveDataRaw && (
+              <div
+                className="space-y-3"
+                data-ocid="checker.live_data.success_state"
+              >
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {/* Price */}
+                  <div className="bg-muted/40 rounded-lg p-2.5 border border-border/40">
+                    <p className="text-xs text-muted-foreground mb-0.5">
+                      Preis
+                    </p>
+                    <p className="text-sm font-mono font-bold text-foreground">
+                      {formatPrice(liveDataRaw.price)}
+                    </p>
+                  </div>
+                  {/* OI */}
+                  <div className="bg-muted/40 rounded-lg p-2.5 border border-border/40">
+                    <p className="text-xs text-muted-foreground mb-0.5">OI</p>
+                    <p
+                      className={`text-sm font-semibold ${
+                        OI_LABELS[liveDataRaw.oiDirection]?.color
+                      }`}
+                    >
+                      {OI_LABELS[liveDataRaw.oiDirection]?.label}
+                    </p>
+                  </div>
+                  {/* Funding */}
+                  <div className="bg-muted/40 rounded-lg p-2.5 border border-border/40">
+                    <p className="text-xs text-muted-foreground mb-0.5">
+                      Funding
+                    </p>
+                    <p
+                      className={`text-xs font-semibold ${
+                        FUNDING_LABELS[liveDataRaw.fundingLevel]?.color
+                      }`}
+                    >
+                      {formatFundingRate(liveDataRaw.rawFunding)}
+                    </p>
+                    <p
+                      className={`text-xs ${
+                        FUNDING_LABELS[liveDataRaw.fundingLevel]?.color
+                      }`}
+                    >
+                      {FUNDING_LABELS[liveDataRaw.fundingLevel]?.label}
+                    </p>
+                  </div>
+                  {/* CVD */}
+                  <div className="bg-muted/40 rounded-lg p-2.5 border border-border/40">
+                    <p className="text-xs text-muted-foreground mb-0.5">CVD</p>
+                    <p
+                      className={`text-sm font-semibold ${
+                        CVD_LABELS[liveDataRaw.futureCVD]?.color
+                      }`}
+                    >
+                      {CVD_LABELS[liveDataRaw.futureCVD]?.label}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">
+                    Quelle: Hyperliquid API — zum Aktualisieren erneut laden
+                  </p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={fetchLiveData}
+                    className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                    data-ocid="checker.live_data_refresh.button"
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                    Aktualisieren
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Error state */}
+            {liveDataStatus === "error" && (
+              <div
+                className="space-y-3"
+                data-ocid="checker.live_data.error_state"
+              >
+                <Alert className="border-red-500/30 bg-red-500/10">
+                  <AlertTriangle className="h-4 w-4 text-red-400" />
+                  <AlertDescription className="text-xs text-red-300">
+                    {liveDataError}
+                  </AlertDescription>
+                </Alert>
+
+                <p className="text-xs font-medium text-muted-foreground">
+                  Bitte Werte manuell eingeben:
+                </p>
+
+                {/* Manual fallback fields */}
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  {/* Manual price */}
+                  <div className="space-y-1.5">
+                    <Label
+                      htmlFor="currentPrice"
+                      className="text-xs font-medium"
+                    >
+                      Aktueller Preis
+                    </Label>
+                    <Input
+                      id="currentPrice"
+                      data-ocid="checker.currentPrice.input"
+                      type="number"
+                      step="any"
+                      placeholder="z.B. 89.10"
+                      value={form.currentPrice}
+                      onChange={(e) =>
+                        handleChange("currentPrice", e.target.value)
+                      }
+                      className={`h-8 text-sm ${
+                        errors.currentPrice ? "border-red-500" : ""
+                      }`}
+                    />
+                    {errors.currentPrice && (
+                      <p
+                        className="text-xs text-red-400"
+                        data-ocid="checker.currentPrice.error_state"
+                      >
+                        {errors.currentPrice}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Manual OI */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">OI-Richtung</Label>
+                    <Select
+                      value={form.oiDirection}
+                      onValueChange={(v) => handleChange("oiDirection", v)}
+                    >
+                      <SelectTrigger
+                        className="h-8 text-xs"
+                        data-ocid="checker.oiDirection.select"
+                      >
+                        <SelectValue placeholder="Wählen..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="rising">📈 OI steigt</SelectItem>
+                        <SelectItem value="neutral">➡ OI neutral</SelectItem>
+                        <SelectItem value="falling">📉 OI fällt</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Manual Funding */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Funding Rate</Label>
+                    <Select
+                      value={form.fundingLevel}
+                      onValueChange={(v) => handleChange("fundingLevel", v)}
+                    >
+                      <SelectTrigger
+                        className="h-8 text-xs"
+                        data-ocid="checker.fundingLevel.select"
+                      >
+                        <SelectValue placeholder="Wählen..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="strongPositive">
+                          🔴 Stark positiv
+                        </SelectItem>
+                        <SelectItem value="neutral">⚪ Neutral</SelectItem>
+                        <SelectItem value="strongNegative">
+                          🟢 Stark negativ
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={fetchLiveData}
+                  className="gap-1.5 text-xs"
+                  data-ocid="checker.live_data_retry.button"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  Erneut versuchen
+                </Button>
+              </div>
+            )}
+
+            {/* Show price error even when not in error state */}
+            {liveDataStatus === "success" && errors.currentPrice && (
+              <p
+                className="text-xs text-red-400"
+                data-ocid="checker.currentPrice.error_state"
+              >
+                {errors.currentPrice}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* ── SECTION 3: Chart-Daten ── */}
+        <Card className="border border-border/60">
+          <CardHeader className="pb-3 pt-4 px-5">
+            <div className="flex items-center gap-2">
+              <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center flex-shrink-0">
+                3
+              </span>
+              <CardTitle className="text-sm font-semibold">
+                Chart-Daten
+              </CardTitle>
+            </div>
+            <CardDescription className="text-xs pl-7">
+              📊 Im Hyperliquid Chart ablesen ({timeframe}-Zeitrahmen)
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="px-5 pb-4 space-y-4">
+            {/* EMA Alignment Dropdown */}
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">
+                EMA Ausrichtung
+                <span className="ml-2 text-xs text-muted-foreground font-normal">
+                  ({timeframe === "1m" ? "EMA9 / EMA21" : "EMA20 / 50 / 200"})
+                </span>
+              </Label>
+              <Select
+                value={form.emaAlignment}
+                onValueChange={(v) => handleChange("emaAlignment", v)}
+              >
+                <SelectTrigger
+                  data-ocid="checker.emaAlignment.select"
+                  className={errors.emaAlignment ? "border-red-500" : ""}
+                >
+                  <SelectValue placeholder="EMA-Ausrichtung wählen..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {timeframe === "1m" ? (
+                    <>
+                      <SelectItem value="bullish">
+                        📈 EMA9 &gt; EMA21 (Bullish)
+                      </SelectItem>
+                      <SelectItem value="bearish">
+                        📉 EMA9 &lt; EMA21 (Bearish)
+                      </SelectItem>
+                      <SelectItem value="mixed">↔ Gekreuzt / Unklar</SelectItem>
+                    </>
+                  ) : (
+                    <>
+                      <SelectItem value="bullish">
+                        📈 EMA20 &gt; EMA50 &gt; EMA200 (Bullish)
+                      </SelectItem>
+                      <SelectItem value="bearish">
+                        📉 EMA20 &lt; EMA50 &lt; EMA200 (Bearish)
+                      </SelectItem>
+                      <SelectItem value="mixed">↔ Gemischt</SelectItem>
+                    </>
+                  )}
+                </SelectContent>
+              </Select>
+              {errors.emaAlignment && (
+                <p
+                  className="text-xs text-red-400"
+                  data-ocid="checker.emaAlignment.error_state"
+                >
+                  {errors.emaAlignment}
+                </p>
+              )}
+            </div>
+
+            {/* RSI + ATR row */}
+            <div
+              className={`grid gap-4 ${
+                timeframe === "1m" ? "grid-cols-2" : "grid-cols-2"
+              }`}
+            >
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="rsi" className="text-sm font-medium">
+                    RSI (0–100)
+                  </Label>
+                  <span className="text-xs text-muted-foreground font-mono">
+                    [{form.rsiTimeframe}]
+                  </span>
+                </div>
                 <Input
-                  id="currentPrice"
-                  data-ocid="checker.currentPrice.input"
+                  id="rsi"
+                  data-ocid="checker.rsi.input"
                   type="number"
                   step="any"
-                  placeholder="z.B. 89.10"
-                  value={form.currentPrice}
-                  onChange={(e) => handleChange("currentPrice", e.target.value)}
-                  className={errors.currentPrice ? "border-red-500" : ""}
+                  min="0"
+                  max="100"
+                  placeholder="z.B. 52"
+                  value={form.rsi}
+                  onChange={(e) => handleChange("rsi", e.target.value)}
+                  className={errors.rsi ? "border-red-500" : ""}
                 />
-                {errors.currentPrice && (
+                {errors.rsi ? (
                   <p
                     className="text-xs text-red-400"
-                    data-ocid="checker.currentPrice.error_state"
+                    data-ocid="checker.rsi.error_state"
                   >
-                    {errors.currentPrice}
+                    {errors.rsi}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    {rsiThresholdHint}
                   </p>
                 )}
               </div>
 
-              {/* ATR field — optional on 1m, required on 15m/1h */}
               <div className="space-y-1.5">
                 <Label htmlFor="atr" className="text-sm font-medium">
                   ATR{timeframe === "1m" ? " (optional)" : ""}
+                  <span className="ml-1 text-xs text-muted-foreground font-normal">
+                    [{timeframe}]
+                  </span>
                 </Label>
                 <Input
                   id="atr"
@@ -450,545 +833,119 @@ export default function TradeEntryChecker() {
                   onChange={(e) => handleChange("atr", e.target.value)}
                   className={errors.atr ? "border-red-500" : ""}
                 />
-                {errors.atr && (
+                {errors.atr ? (
                   <p className="text-xs text-red-400">{errors.atr}</p>
-                )}
-                {timeframe === "1m" && !errors.atr && (
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    Im 1m-Chart nur als Aktivitäts-Indikator. Leer lassen wenn
-                    nicht verfügbar.
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    {timeframe === "1m"
+                      ? "Optional auf 1m"
+                      : "Für SL/TP-Berechnung"}
                   </p>
                 )}
               </div>
             </div>
 
-            {/* EMA Fields — conditional on timeframe */}
-            {timeframe === "1m" ? (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Label className="text-sm font-medium">EMA-Werte</Label>
-                  <Badge
-                    variant="secondary"
-                    className="text-xs font-mono px-1.5 py-0"
-                  >
-                    Werte vom 1m Chart
-                  </Badge>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="ema9" className="text-sm font-medium">
-                      EMA 9
-                    </Label>
-                    <Input
-                      id="ema9"
-                      data-ocid="checker.ema9.input"
-                      type="number"
-                      step="any"
-                      placeholder="z.B. 88.95"
-                      value={form.ema9}
-                      onChange={(e) => handleChange("ema9", e.target.value)}
-                      className={errors.ema9 ? "border-red-500" : ""}
-                    />
-                    {errors.ema9 && (
-                      <p className="text-xs text-red-400">{errors.ema9}</p>
-                    )}
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label htmlFor="ema21" className="text-sm font-medium">
-                      EMA 21
-                    </Label>
-                    <Input
-                      id="ema21"
-                      data-ocid="checker.ema21.input"
-                      type="number"
-                      step="any"
-                      placeholder="z.B. 88.70"
-                      value={form.ema21}
-                      onChange={(e) => handleChange("ema21", e.target.value)}
-                      className={errors.ema21 ? "border-red-500" : ""}
-                    />
-                    {errors.ema21 && (
-                      <p className="text-xs text-red-400">{errors.ema21}</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Label className="text-sm font-medium">EMA-Werte</Label>
-                  <Badge
-                    variant="secondary"
-                    className="text-xs font-mono px-1.5 py-0"
-                  >
-                    Werte vom {timeframe} Chart
-                  </Badge>
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="ema20" className="text-sm font-medium">
-                      EMA 20
-                    </Label>
-                    <Input
-                      id="ema20"
-                      data-ocid="checker.ema20.input"
-                      type="number"
-                      step="any"
-                      placeholder="z.B. 88.90"
-                      value={form.ema20}
-                      onChange={(e) => handleChange("ema20", e.target.value)}
-                      className={errors.ema20 ? "border-red-500" : ""}
-                    />
-                    {errors.ema20 && (
-                      <p className="text-xs text-red-400">{errors.ema20}</p>
-                    )}
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label htmlFor="ema50" className="text-sm font-medium">
-                      EMA 50
-                    </Label>
-                    <Input
-                      id="ema50"
-                      data-ocid="checker.ema50.input"
-                      type="number"
-                      step="any"
-                      placeholder="z.B. 87.50"
-                      value={form.ema50}
-                      onChange={(e) => handleChange("ema50", e.target.value)}
-                      className={errors.ema50 ? "border-red-500" : ""}
-                    />
-                    {errors.ema50 && (
-                      <p className="text-xs text-red-400">{errors.ema50}</p>
-                    )}
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label htmlFor="ema200" className="text-sm font-medium">
-                      EMA 200
-                    </Label>
-                    <Input
-                      id="ema200"
-                      data-ocid="checker.ema200.input"
-                      type="number"
-                      step="any"
-                      placeholder="z.B. 85.00"
-                      value={form.ema200}
-                      onChange={(e) => handleChange("ema200", e.target.value)}
-                      className={errors.ema200 ? "border-red-500" : ""}
-                    />
-                    {errors.ema200 && (
-                      <p className="text-xs text-red-400">{errors.ema200}</p>
-                    )}
-                  </div>
-                </div>
+            {/* MACD — only for 15m/1h */}
+            {timeframe !== "1m" && (
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">MACD Richtung</Label>
+                <Select
+                  value={form.macdDirection}
+                  onValueChange={(v) =>
+                    handleChange("macdDirection", v as MACDDirection)
+                  }
+                >
+                  <SelectTrigger data-ocid="checker.macd.select">
+                    <SelectValue placeholder="MACD Richtung wählen" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Bullish">📈 Bullish</SelectItem>
+                    <SelectItem value="Neutral">➡ Neutral</SelectItem>
+                    <SelectItem value="Bearish">📉 Bearish</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             )}
+          </CardContent>
+        </Card>
 
-            {/* RSI + RSI Timeframe + MACD Row */}
-            <div
-              className={`grid gap-4 ${timeframe === "1m" ? "grid-cols-1" : "grid-cols-2"}`}
+        {/* ── SECTION 4: Kiyotaka ── */}
+        <Card className="border border-border/60">
+          <CardHeader className="pb-3 pt-4 px-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center flex-shrink-0">
+                  4
+                </span>
+                <CardTitle className="text-sm font-semibold">
+                  Liquidations-Cluster
+                </CardTitle>
+                <Badge
+                  variant="outline"
+                  className="text-xs px-1.5 py-0 text-muted-foreground"
+                >
+                  Kiyotaka
+                </Badge>
+              </div>
+              <a
+                href="https://kiyotaka.ai"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border border-border/60 bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                data-ocid="checker.kiyotaka.link"
+              >
+                <ExternalLink className="h-3 w-3" />
+                Kiyotaka öffnen
+              </a>
+            </div>
+            <CardDescription className="text-xs pl-7">
+              Kiyotaka → Liquidation Heatmap prüfen und Cluster-Position
+              angeben.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="px-5 pb-4">
+            <Select
+              value={form.liquidationsNear}
+              onValueChange={(v) => handleChange("liquidationsNear", v)}
             >
-              <div className="space-y-1.5">
-                {/* RSI label row with timeframe toggle */}
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <Label htmlFor="rsi" className="text-sm font-medium">
-                    RSI (0–100)
-                  </Label>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-muted-foreground">
-                      RSI-Timeframe:
-                    </span>
-                    <div className="flex gap-1">
-                      {RSI_TIMEFRAMES.map((tf) => (
-                        <button
-                          key={tf.value}
-                          type="button"
-                          data-ocid="checker.rsiTimeframe.tab"
-                          onClick={() => handleChange("rsiTimeframe", tf.value)}
-                          className={`
-                            px-2 py-0.5 rounded text-xs font-mono font-semibold border transition-all duration-150
-                            ${
-                              form.rsiTimeframe === tf.value
-                                ? "bg-primary text-primary-foreground border-primary"
-                                : "bg-background text-muted-foreground border-border hover:border-primary/50 hover:text-foreground"
-                            }
-                          `}
-                        >
-                          {tf.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-                <Input
-                  id="rsi"
-                  data-ocid="checker.rsi.input"
-                  type="number"
-                  step="any"
-                  min="0"
-                  max="100"
-                  placeholder="z.B. 52.4"
-                  value={form.rsi}
-                  onChange={(e) => handleChange("rsi", e.target.value)}
-                  className={errors.rsi ? "border-red-500" : ""}
-                />
-                {errors.rsi && (
-                  <p
-                    className="text-xs text-red-400"
-                    data-ocid="checker.rsi.error_state"
-                  >
-                    {errors.rsi}
-                  </p>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  {form.rsiTimeframe === "1m" &&
-                    "RSI 1m: Long < 75, Short > 25"}
-                  {form.rsiTimeframe === "15m" &&
-                    "RSI 15m: Long < 65, Short > 35"}
-                  {form.rsiTimeframe === "1h" &&
-                    "RSI 1h: Long < 60, Short > 40"}
-                </p>
-              </div>
+              <SelectTrigger data-ocid="checker.liquidationsNear.select">
+                <SelectValue placeholder="Liquidations-Cluster wählen..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">— Keine Cluster erkennbar</SelectItem>
+                <SelectItem value="longsNear">
+                  ⚡ Long-Liquidationen nahe (Cluster unten)
+                </SelectItem>
+                <SelectItem value="shortsNear">
+                  ⚡ Short-Liquidationen nahe (Cluster oben)
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </CardContent>
+        </Card>
 
-              {/* MACD — hidden on 1m */}
-              {timeframe !== "1m" ? (
-                <div className="space-y-1.5">
-                  <Label htmlFor="macd" className="text-sm font-medium">
-                    MACD Direction
-                  </Label>
-                  <Select
-                    value={form.macdDirection}
-                    onValueChange={(v) =>
-                      handleChange("macdDirection", v as MACDDirection)
-                    }
-                  >
-                    <SelectTrigger id="macd" data-ocid="checker.macd.select">
-                      <SelectValue placeholder="MACD Richtung wählen" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Bullish">📈 Bullish</SelectItem>
-                      <SelectItem value="Neutral">➡ Neutral</SelectItem>
-                      <SelectItem value="Bearish">📉 Bearish</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              ) : (
-                <Alert className="border-border/50 bg-muted/30 col-span-1">
-                  <Info className="h-4 w-4 text-muted-foreground" />
-                  <AlertDescription className="text-xs text-muted-foreground">
-                    MACD im 1m-Chart nicht empfohlen (zu viel Rauschen).
-                    Entfällt bei 1m-Bewertung.
-                  </AlertDescription>
-                </Alert>
-              )}
-            </div>
-
-            {/* Orderbook & Volume Section */}
-            <div className="space-y-3 pt-1">
-              <div className="flex items-center gap-2">
-                <BookOpen className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-semibold text-foreground">
-                  Orderbook & Volumen
-                </span>
-                <Badge
-                  variant="outline"
-                  className="text-xs px-1.5 py-0 text-muted-foreground"
-                >
-                  optional
-                </Badge>
-              </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                {/* Bid/Ask Spread */}
-                <div className="space-y-1.5">
-                  <Label htmlFor="bidAskSpread" className="text-sm font-medium">
-                    Bid/Ask Spread
-                  </Label>
-                  <Input
-                    id="bidAskSpread"
-                    data-ocid="checker.bidAskSpread.input"
-                    type="number"
-                    step="any"
-                    min="0"
-                    placeholder="z.B. 0.05"
-                    value={form.bidAskSpread}
-                    onChange={(e) =>
-                      handleChange("bidAskSpread", e.target.value)
-                    }
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Absoluter Spread-Wert
-                  </p>
-                </div>
-
-                {/* Orderbook Imbalance */}
-                <div className="space-y-1.5">
-                  <Label
-                    htmlFor="orderbookImbalance"
-                    className="text-sm font-medium"
-                  >
-                    Orderbook
-                  </Label>
-                  <Select
-                    value={form.orderbookImbalance}
-                    onValueChange={(v) => handleChange("orderbookImbalance", v)}
-                  >
-                    <SelectTrigger
-                      id="orderbookImbalance"
-                      data-ocid="checker.orderbookImbalance.select"
-                    >
-                      <SelectValue placeholder="Wählen..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="moreBids">
-                        🟢 Mehr Bids (bullish)
-                      </SelectItem>
-                      <SelectItem value="balanced">⚪ Ausgeglichen</SelectItem>
-                      <SelectItem value="moreAsks">
-                        🔴 Mehr Asks (bearish)
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Volume Level */}
-                <div className="space-y-1.5">
-                  <Label htmlFor="volumeLevel" className="text-sm font-medium">
-                    Volumen
-                  </Label>
-                  <Select
-                    value={form.volumeLevel}
-                    onValueChange={(v) => handleChange("volumeLevel", v)}
-                  >
-                    <SelectTrigger
-                      id="volumeLevel"
-                      data-ocid="checker.volumeLevel.select"
-                    >
-                      <SelectValue placeholder="Wählen..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="above">
-                        📈 Über Durchschnitt
-                      </SelectItem>
-                      <SelectItem value="average">➡ Durchschnitt</SelectItem>
-                      <SelectItem value="below">
-                        📉 Unter Durchschnitt
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-
-            {/* Orderflow Section */}
-            <div className="space-y-3 pt-1">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-semibold text-foreground">
-                  Orderflow (OI / CVD / Funding)
-                </span>
-                <Badge
-                  variant="outline"
-                  className="text-xs px-1.5 py-0 text-muted-foreground"
-                >
-                  optional
-                </Badge>
-              </div>
-              <div className="flex flex-wrap gap-2 mt-1">
-                <a
-                  href="https://hyperliquid-dash.org"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border border-border/60 bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <ExternalLink className="h-3 w-3" />
-                  HyperDash (OI, Liq)
-                </a>
-                <a
-                  href="https://kiyotaka.ai"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border border-border/60 bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <ExternalLink className="h-3 w-3" />
-                  Kiyotaka (Liq-Cluster)
-                </a>
-                <a
-                  href="https://app.hyperliquid.xyz"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border border-border/60 bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <ExternalLink className="h-3 w-3" />
-                  Hyperliquid (OI, Funding)
-                </a>
-              </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {/* OI Direction */}
-                <div className="space-y-1.5">
-                  <Label htmlFor="oiDirection" className="text-sm font-medium">
-                    OI-Richtung
-                  </Label>
-                  <Select
-                    value={form.oiDirection}
-                    onValueChange={(v) => handleChange("oiDirection", v)}
-                  >
-                    <SelectTrigger
-                      id="oiDirection"
-                      data-ocid="checker.oiDirection.select"
-                    >
-                      <SelectValue placeholder="Wählen..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="rising">
-                        📈 OI steigt (neues Geld)
-                      </SelectItem>
-                      <SelectItem value="neutral">➡ OI neutral</SelectItem>
-                      <SelectItem value="falling">
-                        📉 OI fällt (Positionen schließen)
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Futures CVD */}
-                <div className="space-y-1.5">
-                  <Label htmlFor="futureCVD" className="text-sm font-medium">
-                    Futures CVD
-                  </Label>
-                  <Select
-                    value={form.futureCVD}
-                    onValueChange={(v) => handleChange("futureCVD", v)}
-                  >
-                    <SelectTrigger
-                      id="futureCVD"
-                      data-ocid="checker.futureCVD.select"
-                    >
-                      <SelectValue placeholder="Wählen..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="bullish">
-                        🟢 Bullish (Longs aggressiv)
-                      </SelectItem>
-                      <SelectItem value="neutral">⚪ Neutral</SelectItem>
-                      <SelectItem value="bearish">
-                        🔴 Bearish (Shorts aggressiv)
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Spot CVD */}
-                <div className="space-y-1.5">
-                  <Label htmlFor="spotCVD" className="text-sm font-medium">
-                    Spot CVD
-                  </Label>
-                  <Select
-                    value={form.spotCVD}
-                    onValueChange={(v) => handleChange("spotCVD", v)}
-                  >
-                    <SelectTrigger
-                      id="spotCVD"
-                      data-ocid="checker.spotCVD.select"
-                    >
-                      <SelectValue placeholder="Wählen..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="bullish">
-                        🟢 Bullish (echtes Kaufen)
-                      </SelectItem>
-                      <SelectItem value="neutral">⚪ Neutral/fehlt</SelectItem>
-                      <SelectItem value="bearish">
-                        🔴 Bearish (echter Verkauf)
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Funding Rate */}
-                <div className="space-y-1.5">
-                  <Label htmlFor="fundingLevel" className="text-sm font-medium">
-                    Funding Rate
-                  </Label>
-                  <Select
-                    value={form.fundingLevel}
-                    onValueChange={(v) => handleChange("fundingLevel", v)}
-                  >
-                    <SelectTrigger
-                      id="fundingLevel"
-                      data-ocid="checker.fundingLevel.select"
-                    >
-                      <SelectValue placeholder="Wählen..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="strongPositive">
-                        🔴 Stark positiv (viele Longs)
-                      </SelectItem>
-                      <SelectItem value="neutral">⚪ Neutral</SelectItem>
-                      <SelectItem value="strongNegative">
-                        🟢 Stark negativ (viele Shorts)
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Liquidations Near */}
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label
-                    htmlFor="liquidationsNear"
-                    className="text-sm font-medium"
-                  >
-                    Liquidationen nahe
-                  </Label>
-                  <Select
-                    value={form.liquidationsNear}
-                    onValueChange={(v) => handleChange("liquidationsNear", v)}
-                  >
-                    <SelectTrigger
-                      id="liquidationsNear"
-                      data-ocid="checker.liquidationsNear.select"
-                    >
-                      <SelectValue placeholder="Wählen..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="longsNear">
-                        ⚡ Long-Cluster nahe (Bottom?)
-                      </SelectItem>
-                      <SelectItem value="none">— Keine</SelectItem>
-                      <SelectItem value="shortsNear">
-                        ⚡ Short-Cluster nahe (Top?)
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-
-            {/* Buttons */}
-            <div className="flex gap-3 pt-2">
-              <Button
-                type="submit"
-                className="flex-1 gap-2"
-                data-ocid="checker.submit_button"
-              >
-                <Search className="h-4 w-4" />
-                Entry prüfen
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleReset}
-                className="gap-2"
-                data-ocid="checker.reset_button"
-              >
-                <RotateCcw className="h-4 w-4" />
-                Reset
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+        {/* ── Buttons ── */}
+        <div className="flex gap-3">
+          <Button
+            type="submit"
+            className="flex-1 gap-2"
+            data-ocid="checker.submit_button"
+          >
+            <Search className="h-4 w-4" />
+            Analyse starten
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleReset}
+            className="gap-2"
+            data-ocid="checker.reset_button"
+          >
+            <RotateCcw className="h-4 w-4" />
+            Zurücksetzen
+          </Button>
+        </div>
+      </form>
 
       {/* Results */}
       {result && (

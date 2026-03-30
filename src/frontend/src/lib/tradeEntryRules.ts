@@ -3,8 +3,7 @@ export type TradeDirection = "Long" | "Short";
 export type Verdict = "go" | "wait" | "no-go";
 export type Timeframe = "1m" | "15m" | "1h";
 export type RSITimeframe = "1m" | "15m" | "1h";
-export type OrderbookImbalance = "moreBids" | "balanced" | "moreAsks";
-export type VolumeLevel = "above" | "average" | "below";
+export type EMAAlignment = "bullish" | "bearish" | "mixed";
 export type OIDirection = "rising" | "neutral" | "falling";
 export type CVDSignal = "bullish" | "neutral" | "bearish";
 export type FundingLevel = "strongPositive" | "neutral" | "strongNegative";
@@ -21,18 +20,14 @@ export interface TradeEntryParams1m {
   timeframe: "1m";
   assetName: string;
   currentPrice: number;
-  ema9: number;
-  ema21: number;
+  emaAlignment: EMAAlignment;
   rsi: number;
   atr?: number; // optional on 1m
   tradeDirection: TradeDirection;
   rsiTimeframe?: RSITimeframe;
-  bidAskSpread?: number;
-  orderbookImbalance?: OrderbookImbalance;
-  volumeLevel?: VolumeLevel;
   oiDirection?: OIDirection;
   futureCVD?: CVDSignal;
-  spotCVD?: CVDSignal;
+  spotCVD?: CVDSignal; // optional, kept for backwards compat
   fundingLevel?: FundingLevel;
   liquidationsNear?: LiquidationsNear;
 }
@@ -42,20 +37,15 @@ export interface TradeEntryParams15m1h {
   timeframe: "15m" | "1h";
   assetName: string;
   currentPrice: number;
-  ema20: number;
-  ema50: number;
-  ema200: number;
+  emaAlignment: EMAAlignment;
   rsi: number;
   atr: number;
   macdDirection: MACDDirection;
   tradeDirection: TradeDirection;
   rsiTimeframe?: RSITimeframe;
-  bidAskSpread?: number;
-  orderbookImbalance?: OrderbookImbalance;
-  volumeLevel?: VolumeLevel;
   oiDirection?: OIDirection;
   futureCVD?: CVDSignal;
-  spotCVD?: CVDSignal;
+  spotCVD?: CVDSignal; // optional, kept for backwards compat
   fundingLevel?: FundingLevel;
   liquidationsNear?: LiquidationsNear;
 }
@@ -105,14 +95,6 @@ export function validateATR(value: string, optional = false): string | null {
   return null;
 }
 
-export function validateEMA(value: string, label: string): string | null {
-  if (value.trim() === "") return "This field is required.";
-  const num = Number.parseFloat(value);
-  if (Number.isNaN(num) || num <= 0)
-    return `${label} must be a positive number.`;
-  return null;
-}
-
 export function validateAssetName(value: string): string | null {
   if (value.trim() === "") return "This field is required.";
   return null;
@@ -131,12 +113,12 @@ function buildSummaryMessage(
   tradeDirection: TradeDirection,
 ): string {
   if (verdict === "go") {
-    return `All ${totalConditions} conditions are met. The setup looks clean for a ${tradeDirection} entry.`;
+    return `Alle ${totalConditions} Bedingungen erfüllt. Das Setup ist bereit für einen ${tradeDirection}-Entry.`;
   }
   if (verdict === "wait") {
-    return `${passedCount} of ${totalConditions} conditions met. Some signals are not aligned yet — wait for a better setup.`;
+    return `${passedCount} von ${totalConditions} Bedingungen erfüllt. Einige Signale sind noch nicht ausgerichtet — auf ein besseres Setup warten.`;
   }
-  return `Only ${passedCount} of ${totalConditions} conditions met. The setup is not ready for a ${tradeDirection} entry. Do not enter now.`;
+  return `Nur ${passedCount} von ${totalConditions} Bedingungen erfüllt. Das Setup ist nicht bereit für einen ${tradeDirection}-Entry. Jetzt nicht einsteigen.`;
 }
 
 function getRSIThresholds(
@@ -150,65 +132,53 @@ function getRSIThresholds(
   return { longMax: 60, shortMin: 40 };
 }
 
+/**
+ * Simplified TWAP recommendation based on OI and funding.
+ * TWAP is recommended when the market is crowded (OI rising + funding strongly positive),
+ * meaning entering all at once carries higher reversal risk.
+ */
 function buildTwapRecommendation(
-  currentPrice: number,
-  bidAskSpread: number | undefined,
-  orderbookImbalance: OrderbookImbalance | undefined,
-  volumeLevel: VolumeLevel | undefined,
+  oiDirection: OIDirection | undefined,
+  fundingLevel: FundingLevel | undefined,
 ): { twapRecommended: boolean; twapReason: string } {
-  const reasons: string[] = [];
-
-  if (bidAskSpread !== undefined) {
-    const spreadPct = (bidAskSpread / currentPrice) * 100;
-    if (spreadPct > 0.1) {
-      reasons.push(
-        `Bid/Ask Spread von ${spreadPct.toFixed(3)}% ist erhöht (>0.1%) — TWAP reduziert Slippage`,
-      );
-    }
-  }
-  if (volumeLevel === "below") {
-    reasons.push(
-      "Volumen ist unterdurchschnittlich — niedrige Liquidität begünstigt gestaffelten Einstieg",
-    );
-  }
-  if (orderbookImbalance === "balanced") {
-    reasons.push(
-      "Orderbook ist ausgeglichen — kein starkes Signal, TWAP gibt mehr Flexibilität",
-    );
-  }
-
-  if (reasons.length > 0) {
+  if (oiDirection === "rising" && fundingLevel === "strongPositive") {
     return {
       twapRecommended: true,
-      twapReason: `${reasons.join(". ")}.`,
+      twapReason:
+        "OI steigt und Funding ist stark positiv — der Markt ist überladen mit Longs. TWAP über 20–30 Minuten reduziert das Risiko eines ungünstigen Einzel-Entries in eine überhitzte Position.",
     };
   }
-
   return {
     twapRecommended: false,
     twapReason:
-      "Spread, Volumen und Orderbook zeigen gute Konditionen — ein einzelner Limit-Entry ist ausreichend.",
+      "Marktbedingungen sind für einen einzelnen Limit-Entry geeignet. Kein übermäßiges OI oder Funding-Ungleichgewicht erkennbar.",
   };
 }
 
+/**
+ * Detects orderflow patterns from OI, CVD and Funding.
+ * spotCVD is treated as neutral when absent (no longer collected from UI).
+ */
 function detectOrderflowPattern(
   params: TradeEntryParams,
 ): OrderflowPattern | undefined {
-  const { oiDirection, futureCVD, spotCVD, fundingLevel } =
+  const { oiDirection, futureCVD, fundingLevel } =
     params as TradeEntryParams & {
       oiDirection?: OIDirection;
       futureCVD?: CVDSignal;
-      spotCVD?: CVDSignal;
       fundingLevel?: FundingLevel;
-      liquidationsNear?: LiquidationsNear;
     };
 
-  // If no orderflow data provided, return undefined
-  if (!oiDirection && !futureCVD && !spotCVD && !fundingLevel) return undefined;
+  // Treat missing spotCVD as neutral
+  const spotCVD =
+    (params as TradeEntryParams & { spotCVD?: CVDSignal }).spotCVD ?? "neutral";
+
+  // If no orderflow data at all, return undefined
+  if (!oiDirection && !futureCVD && !fundingLevel) return undefined;
 
   const dir = params.tradeDirection;
 
-  // 1. Leverage Pump Trap
+  // 1. Leverage Pump Trap: Futures drive price up, no real spot buying
   if (
     oiDirection === "rising" &&
     futureCVD === "bullish" &&
@@ -218,25 +188,21 @@ function detectOrderflowPattern(
       patternName: "Leverage Pump Trap",
       signal: "warning",
       explanation:
-        "Futures treiben den Move, Spot fehlt. Hohes Dump-Risiko — kein Long Entry.",
+        "Futures treiben den Move, Spot fehlt. Hohes Dump-Risiko — kein Long Entry ohne Spot-Bestätigung.",
     };
   }
 
-  // 2. Short Squeeze Setup
-  if (
-    oiDirection === "rising" &&
-    fundingLevel === "strongNegative" &&
-    spotCVD === "bullish"
-  ) {
+  // 2. Short Squeeze Setup: Shorts trapped, funding negative
+  if (oiDirection === "rising" && fundingLevel === "strongNegative") {
     return {
       patternName: "Short Squeeze Setup",
       signal: "bullish",
       explanation:
-        "Shorts sitzen fest und Spot kauft. Short Squeeze wahrscheinlich.",
+        "Shorts sitzen fest (OI steigt, Funding negativ). Short Squeeze wahrscheinlich — Long-Bias gerechtfertigt.",
     };
   }
 
-  // 3. Versteckte Akkumulation
+  // 3. Versteckte Akkumulation: Bears pressing, but buying absorbs
   if (
     oiDirection === "rising" &&
     futureCVD === "bearish" &&
@@ -246,11 +212,11 @@ function detectOrderflowPattern(
       patternName: "Versteckte Akkumulation",
       signal: "bullish",
       explanation:
-        "Shorts drücken aggressiv, Spot absorbiert alles. Short Squeeze Potenzial.",
+        "Shorts drücken aggressiv, Spot absorbiert alles. Short Squeeze Potenzial — bullish.",
     };
   }
 
-  // 4. Starker Trend (Long only)
+  // 4. Starker Trend (Long)
   if (
     dir === "Long" &&
     oiDirection === "rising" &&
@@ -265,7 +231,7 @@ function detectOrderflowPattern(
     };
   }
 
-  // 5. Starker Downtrend (Short only)
+  // 5. Starker Downtrend (Short)
   if (
     dir === "Short" &&
     oiDirection === "rising" &&
@@ -280,12 +246,8 @@ function detectOrderflowPattern(
     };
   }
 
-  // 6. Short Covering
-  if (
-    oiDirection === "falling" &&
-    futureCVD === "bullish" &&
-    spotCVD === "neutral"
-  ) {
+  // 6. Short Covering: OI falls but price rises
+  if (oiDirection === "falling" && futureCVD === "bullish") {
     return {
       patternName: "Short Covering",
       signal: "neutral",
@@ -295,11 +257,7 @@ function detectOrderflowPattern(
   }
 
   // 7. Long Liquidation Dump
-  if (
-    oiDirection === "falling" &&
-    futureCVD === "bearish" &&
-    spotCVD === "neutral"
-  ) {
+  if (oiDirection === "falling" && futureCVD === "bearish") {
     return {
       patternName: "Long Liquidation Dump",
       signal: "neutral",
@@ -308,20 +266,16 @@ function detectOrderflowPattern(
     };
   }
 
-  // 8. Long Squeeze
-  if (
-    oiDirection === "rising" &&
-    fundingLevel === "strongPositive" &&
-    (spotCVD === "neutral" || spotCVD === "bearish")
-  ) {
+  // 8. Long Squeeze: Longs trapped by high funding
+  if (oiDirection === "rising" && fundingLevel === "strongPositive") {
     return {
       patternName: "Long Squeeze",
       signal: "warning",
-      explanation: "Longs sitzen fest, Spot fehlt. Long Squeeze möglich.",
+      explanation:
+        "Longs sitzen fest (OI steigt, Funding hoch positiv). Long Squeeze möglich — Vorsicht.",
     };
   }
 
-  // No specific pattern
   return {
     patternName: "Kein klares Muster",
     signal: "neutral",
@@ -332,47 +286,23 @@ function detectOrderflowPattern(
 
 // Evaluate for 1m timeframe
 function evaluate1m(params: TradeEntryParams1m): EntryEvaluationResult {
-  const {
-    currentPrice,
-    ema9,
-    ema21,
-    rsi,
-    atr,
-    tradeDirection,
-    rsiTimeframe,
-    bidAskSpread,
-    orderbookImbalance,
-    volumeLevel,
-  } = params;
+  const { emaAlignment, rsi, tradeDirection, rsiTimeframe } = params;
   const conditions: ConditionResult[] = [];
   const rsiTh = getRSIThresholds(rsiTimeframe, "1m");
 
   if (tradeDirection === "Long") {
-    // Condition 1: EMA9 > EMA21 alignment
-    const emaAligned = ema9 > ema21;
+    // Condition 1: EMA alignment bullish
+    const emaAligned = emaAlignment === "bullish";
     conditions.push({
-      label: "EMA9 > EMA21 (Short-term Bullish)",
+      label: "EMA Ausrichtung bullish (Long)",
       pass: emaAligned,
-      details: `EMA9 (${ema9}) > EMA21 (${ema21})`,
+      details: `EMA Ausrichtung: ${emaAlignment}`,
       failureExplanation: emaAligned
         ? null
-        : `EMA9 (${ema9}) is not above EMA21 (${ema21}). For a 1m Long entry, EMA9 must be above EMA21 to confirm short-term bullish momentum. Wait for EMA9 to cross above EMA21.`,
+        : `EMA-Ausrichtung ist ${emaAlignment === "bearish" ? "bearish (EMA9 < EMA21)" : "gemischt/unklar"}. Für einen Long-Entry im 1m muss EMA9 > EMA21 sein. Warte auf bullishe EMA-Kreuzung.`,
     });
 
-    // Condition 2: Price proximity to EMA9 (only if ATR provided)
-    if (atr !== undefined && atr > 0) {
-      const notOverextended = currentPrice <= ema9 + atr;
-      conditions.push({
-        label: "Price Not Overextended Above EMA9",
-        pass: notOverextended,
-        details: `Price (${currentPrice}) ≤ EMA9 + 1×ATR (${(ema9 + atr).toFixed(4)})`,
-        failureExplanation: notOverextended
-          ? null
-          : `Price (${currentPrice}) is overextended above EMA9 by more than 1×ATR (${atr}). Wait for a pullback to EMA9 (${ema9}) before entering Long.`,
-      });
-    }
-
-    // Condition 3: RSI not overbought
+    // Condition 2: RSI not overbought
     const rsiOk = rsi < rsiTh.longMax;
     const rsiTfLabel = rsiTimeframe ?? "1m";
     conditions.push({
@@ -383,71 +313,21 @@ function evaluate1m(params: TradeEntryParams1m): EntryEvaluationResult {
         ? null
         : `RSI ist ${rsi} (${rsiTfLabel}-Chart), überkauft (≥${rsiTh.longMax}). Warte auf RSI-Rückgang vor Long-Einstieg.`,
     });
-
-    // Orderbook condition (optional)
-    if (orderbookImbalance !== undefined) {
-      const obOk =
-        orderbookImbalance === "moreBids" || orderbookImbalance === "balanced";
-      const obLabel = {
-        moreBids: "Mehr Bids (bullish)",
-        balanced: "Ausgeglichen",
-        moreAsks: "Mehr Asks (bearish)",
-      }[orderbookImbalance];
-      conditions.push({
-        label: "Orderbook bullish oder neutral (Long)",
-        pass: obOk,
-        details: `Orderbook: ${obLabel}`,
-        failureExplanation: obOk
-          ? null
-          : "Orderbook zeigt mehr Asks als Bids — bärischer Druck. Kein optimaler Long-Einstieg.",
-      });
-    }
-
-    // Volume condition (optional)
-    if (volumeLevel !== undefined) {
-      const volOk = volumeLevel !== "below";
-      const volLabel = {
-        above: "Über Durchschnitt",
-        average: "Durchschnitt",
-        below: "Unter Durchschnitt",
-      }[volumeLevel];
-      conditions.push({
-        label: "Volumen ausreichend",
-        pass: volOk,
-        details: `Volumen: ${volLabel}`,
-        failureExplanation: volOk
-          ? null
-          : "Unterdurchschnittliches Volumen erhöht Slippage-Risiko. TWAP-Entry empfohlen.",
-      });
-    }
   } else {
     // SHORT conditions for 1m
 
-    // Condition 1: EMA9 < EMA21 alignment
-    const emaAligned = ema9 < ema21;
+    // Condition 1: EMA alignment bearish
+    const emaAligned = emaAlignment === "bearish";
     conditions.push({
-      label: "EMA9 < EMA21 (Short-term Bearish)",
+      label: "EMA Ausrichtung bearish (Short)",
       pass: emaAligned,
-      details: `EMA9 (${ema9}) < EMA21 (${ema21})`,
+      details: `EMA Ausrichtung: ${emaAlignment}`,
       failureExplanation: emaAligned
         ? null
-        : `EMA9 (${ema9}) is not below EMA21 (${ema21}). For a 1m Short entry, EMA9 must be below EMA21 to confirm short-term bearish momentum. Wait for EMA9 to cross below EMA21.`,
+        : `EMA-Ausrichtung ist ${emaAlignment === "bullish" ? "bullish (EMA9 > EMA21)" : "gemischt/unklar"}. Für einen Short-Entry im 1m muss EMA9 < EMA21 sein. Warte auf bearishe EMA-Kreuzung.`,
     });
 
-    // Condition 2: Price proximity to EMA9 (only if ATR provided)
-    if (atr !== undefined && atr > 0) {
-      const notOverextended = currentPrice >= ema9 - atr;
-      conditions.push({
-        label: "Price Not Overextended Below EMA9",
-        pass: notOverextended,
-        details: `Price (${currentPrice}) ≥ EMA9 − 1×ATR (${(ema9 - atr).toFixed(4)})`,
-        failureExplanation: notOverextended
-          ? null
-          : `Price (${currentPrice}) is overextended below EMA9 by more than 1×ATR (${atr}). Wait for a bounce back toward EMA9 (${ema9}) before entering Short.`,
-      });
-    }
-
-    // Condition 3: RSI not oversold
+    // Condition 2: RSI not oversold
     const rsiOk = rsi > rsiTh.shortMin;
     const rsiTfLabel = rsiTimeframe ?? "1m";
     conditions.push({
@@ -458,43 +338,6 @@ function evaluate1m(params: TradeEntryParams1m): EntryEvaluationResult {
         ? null
         : `RSI ist ${rsi} (${rsiTfLabel}-Chart), überverkauft (≤${rsiTh.shortMin}). Warte auf RSI-Erholung vor Short-Einstieg.`,
     });
-
-    // Orderbook condition (optional)
-    if (orderbookImbalance !== undefined) {
-      const obOk =
-        orderbookImbalance === "moreAsks" || orderbookImbalance === "balanced";
-      const obLabel = {
-        moreBids: "Mehr Bids (bullish)",
-        balanced: "Ausgeglichen",
-        moreAsks: "Mehr Asks (bearish)",
-      }[orderbookImbalance];
-      conditions.push({
-        label: "Orderbook bearish oder neutral (Short)",
-        pass: obOk,
-        details: `Orderbook: ${obLabel}`,
-        failureExplanation: obOk
-          ? null
-          : "Orderbook zeigt mehr Bids als Asks — bullisher Druck. Kein optimaler Short-Einstieg.",
-      });
-    }
-
-    // Volume condition (optional)
-    if (volumeLevel !== undefined) {
-      const volOk = volumeLevel !== "below";
-      const volLabel = {
-        above: "Über Durchschnitt",
-        average: "Durchschnitt",
-        below: "Unter Durchschnitt",
-      }[volumeLevel];
-      conditions.push({
-        label: "Volumen ausreichend",
-        pass: volOk,
-        details: `Volumen: ${volLabel}`,
-        failureExplanation: volOk
-          ? null
-          : "Unterdurchschnittliches Volumen erhöht Slippage-Risiko. TWAP-Entry empfohlen.",
-      });
-    }
   }
 
   const passedCount = conditions.filter((c) => c.pass).length;
@@ -507,10 +350,8 @@ function evaluate1m(params: TradeEntryParams1m): EntryEvaluationResult {
     tradeDirection,
   );
   const { twapRecommended, twapReason } = buildTwapRecommendation(
-    currentPrice,
-    bidAskSpread,
-    orderbookImbalance,
-    volumeLevel,
+    params.oiDirection,
+    params.fundingLevel,
   );
 
   return {
@@ -528,47 +369,24 @@ function evaluate1m(params: TradeEntryParams1m): EntryEvaluationResult {
 
 // Evaluate for 15m/1h timeframe
 function evaluate15m1h(params: TradeEntryParams15m1h): EntryEvaluationResult {
-  const {
-    currentPrice,
-    ema20,
-    ema50,
-    ema200,
-    rsi,
-    atr,
-    macdDirection,
-    tradeDirection,
-    rsiTimeframe,
-    bidAskSpread,
-    orderbookImbalance,
-    volumeLevel,
-  } = params;
+  const { emaAlignment, rsi, macdDirection, tradeDirection, rsiTimeframe } =
+    params;
   const conditions: ConditionResult[] = [];
   const rsiTh = getRSIThresholds(rsiTimeframe, params.timeframe);
 
   if (tradeDirection === "Long") {
-    // Condition 1: EMA trend alignment (EMA20 > EMA50 > EMA200)
-    const emaAligned = ema20 > ema50 && ema50 > ema200;
+    // Condition 1: EMA alignment bullish
+    const emaAligned = emaAlignment === "bullish";
     conditions.push({
-      label: "EMA Trend Alignment (Bullish)",
+      label: "EMA Trend Ausrichtung bullish (Long)",
       pass: emaAligned,
-      details: `EMA20 (${ema20}) > EMA50 (${ema50}) > EMA200 (${ema200})`,
+      details: `EMA Ausrichtung: ${emaAlignment}`,
       failureExplanation: emaAligned
         ? null
-        : `EMA alignment is not bullish. Currently: EMA20=${ema20}, EMA50=${ema50}, EMA200=${ema200}. For a Long, you need EMA20 > EMA50 > EMA200. Wait until the trend structure aligns.`,
+        : `EMA-Ausrichtung ist ${emaAlignment === "bearish" ? "bearish (EMA20 < EMA50 < EMA200)" : "gemischt"}. Für einen Long muss EMA20 > EMA50 > EMA200 sein. Warte bis die Trendstruktur ausgerichtet ist.`,
     });
 
-    // Condition 2: Price proximity – not overextended above EMA20
-    const notOverextended = currentPrice <= ema20 + atr;
-    conditions.push({
-      label: "Price Not Overextended Above EMA20",
-      pass: notOverextended,
-      details: `Price (${currentPrice}) ≤ EMA20 + 1×ATR (${(ema20 + atr).toFixed(4)})`,
-      failureExplanation: notOverextended
-        ? null
-        : `Price (${currentPrice}) is overextended above EMA20 by more than 1×ATR (${atr}). The ideal entry is a pullback to EMA20 (${ema20}). Wait for price to return closer to EMA20 before entering.`,
-    });
-
-    // Condition 3: RSI not overbought
+    // Condition 2: RSI not overbought
     const rsiOk = rsi < rsiTh.longMax;
     const rsiTfLabel = rsiTimeframe ?? params.timeframe;
     conditions.push({
@@ -580,79 +398,31 @@ function evaluate15m1h(params: TradeEntryParams15m1h): EntryEvaluationResult {
         : `RSI ist ${rsi} (${rsiTfLabel}-Chart), überkauft (≥${rsiTh.longMax}). Warte auf RSI-Rückgang vor Long-Einstieg.`,
     });
 
-    // Condition 4: MACD direction
+    // Condition 3: MACD confirms bullish
     const macdOk = macdDirection === "Bullish" || macdDirection === "Neutral";
     conditions.push({
-      label: "MACD Confirms Bullish Momentum",
+      label: "MACD bullish oder neutral (Long)",
       pass: macdOk,
-      details: `MACD Direction: ${macdDirection}`,
+      details: `MACD: ${macdDirection}`,
       failureExplanation: macdOk
         ? null
-        : "MACD is Bearish, indicating downward momentum. For a Long entry, MACD should be Bullish or at least Neutral. Wait for MACD to turn around before entering.",
+        : "MACD ist Bearish — Abwärtsmomentum aktiv. Für einen Long-Entry sollte MACD Bullish oder Neutral sein. Warte auf MACD-Wende.",
     });
-
-    // Orderbook condition (optional)
-    if (orderbookImbalance !== undefined) {
-      const obOk =
-        orderbookImbalance === "moreBids" || orderbookImbalance === "balanced";
-      const obLabel = {
-        moreBids: "Mehr Bids (bullish)",
-        balanced: "Ausgeglichen",
-        moreAsks: "Mehr Asks (bearish)",
-      }[orderbookImbalance];
-      conditions.push({
-        label: "Orderbook bullish oder neutral (Long)",
-        pass: obOk,
-        details: `Orderbook: ${obLabel}`,
-        failureExplanation: obOk
-          ? null
-          : "Orderbook zeigt mehr Asks als Bids — bärischer Druck. Kein optimaler Long-Einstieg.",
-      });
-    }
-
-    // Volume condition (optional)
-    if (volumeLevel !== undefined) {
-      const volOk = volumeLevel !== "below";
-      const volLabel = {
-        above: "Über Durchschnitt",
-        average: "Durchschnitt",
-        below: "Unter Durchschnitt",
-      }[volumeLevel];
-      conditions.push({
-        label: "Volumen ausreichend",
-        pass: volOk,
-        details: `Volumen: ${volLabel}`,
-        failureExplanation: volOk
-          ? null
-          : "Unterdurchschnittliches Volumen erhöht Slippage-Risiko. TWAP-Entry empfohlen.",
-      });
-    }
   } else {
     // SHORT conditions for 15m/1h
 
-    // Condition 1: EMA trend alignment (EMA20 < EMA50 < EMA200)
-    const emaAligned = ema20 < ema50 && ema50 < ema200;
+    // Condition 1: EMA alignment bearish
+    const emaAligned = emaAlignment === "bearish";
     conditions.push({
-      label: "EMA Trend Alignment (Bearish)",
+      label: "EMA Trend Ausrichtung bearish (Short)",
       pass: emaAligned,
-      details: `EMA20 (${ema20}) < EMA50 (${ema50}) < EMA200 (${ema200})`,
+      details: `EMA Ausrichtung: ${emaAlignment}`,
       failureExplanation: emaAligned
         ? null
-        : `EMA alignment is not bearish. Currently: EMA20=${ema20}, EMA50=${ema50}, EMA200=${ema200}. For a Short, you need EMA20 < EMA50 < EMA200. Wait until the downtrend structure is confirmed.`,
+        : `EMA-Ausrichtung ist ${emaAlignment === "bullish" ? "bullish (EMA20 > EMA50 > EMA200)" : "gemischt"}. Für einen Short muss EMA20 < EMA50 < EMA200 sein. Warte auf Bestätigung der Downtrend-Struktur.`,
     });
 
-    // Condition 2: Price proximity – not overextended below EMA20
-    const notOverextended = currentPrice >= ema20 - atr;
-    conditions.push({
-      label: "Price Not Overextended Below EMA20",
-      pass: notOverextended,
-      details: `Price (${currentPrice}) ≥ EMA20 − 1×ATR (${(ema20 - atr).toFixed(4)})`,
-      failureExplanation: notOverextended
-        ? null
-        : `Price (${currentPrice}) is overextended below EMA20 by more than 1×ATR (${atr}). The ideal Short entry is a pullback to EMA20 (${ema20}). Wait for price to bounce back toward EMA20 before entering Short.`,
-    });
-
-    // Condition 3: RSI not oversold
+    // Condition 2: RSI not oversold
     const rsiOk = rsi > rsiTh.shortMin;
     const rsiTfLabel = rsiTimeframe ?? params.timeframe;
     conditions.push({
@@ -664,53 +434,16 @@ function evaluate15m1h(params: TradeEntryParams15m1h): EntryEvaluationResult {
         : `RSI ist ${rsi} (${rsiTfLabel}-Chart), überverkauft (≤${rsiTh.shortMin}). Warte auf RSI-Erholung vor Short-Einstieg.`,
     });
 
-    // Condition 4: MACD direction
+    // Condition 3: MACD confirms bearish
     const macdOk = macdDirection === "Bearish" || macdDirection === "Neutral";
     conditions.push({
-      label: "MACD Confirms Bearish Momentum",
+      label: "MACD bearish oder neutral (Short)",
       pass: macdOk,
-      details: `MACD Direction: ${macdDirection}`,
+      details: `MACD: ${macdDirection}`,
       failureExplanation: macdOk
         ? null
-        : "MACD is Bullish, indicating upward momentum. For a Short entry, MACD should be Bearish or at least Neutral. Wait for MACD to turn around before entering.",
+        : "MACD ist Bullish — Aufwärtsmomentum aktiv. Für einen Short-Entry sollte MACD Bearish oder Neutral sein. Warte auf MACD-Wende.",
     });
-
-    // Orderbook condition (optional)
-    if (orderbookImbalance !== undefined) {
-      const obOk =
-        orderbookImbalance === "moreAsks" || orderbookImbalance === "balanced";
-      const obLabel = {
-        moreBids: "Mehr Bids (bullish)",
-        balanced: "Ausgeglichen",
-        moreAsks: "Mehr Asks (bearish)",
-      }[orderbookImbalance];
-      conditions.push({
-        label: "Orderbook bearish oder neutral (Short)",
-        pass: obOk,
-        details: `Orderbook: ${obLabel}`,
-        failureExplanation: obOk
-          ? null
-          : "Orderbook zeigt mehr Bids als Asks — bullisher Druck. Kein optimaler Short-Einstieg.",
-      });
-    }
-
-    // Volume condition (optional)
-    if (volumeLevel !== undefined) {
-      const volOk = volumeLevel !== "below";
-      const volLabel = {
-        above: "Über Durchschnitt",
-        average: "Durchschnitt",
-        below: "Unter Durchschnitt",
-      }[volumeLevel];
-      conditions.push({
-        label: "Volumen ausreichend",
-        pass: volOk,
-        details: `Volumen: ${volLabel}`,
-        failureExplanation: volOk
-          ? null
-          : "Unterdurchschnittliches Volumen erhöht Slippage-Risiko. TWAP-Entry empfohlen.",
-      });
-    }
   }
 
   const passedCount = conditions.filter((c) => c.pass).length;
@@ -723,10 +456,8 @@ function evaluate15m1h(params: TradeEntryParams15m1h): EntryEvaluationResult {
     tradeDirection,
   );
   const { twapRecommended, twapReason } = buildTwapRecommendation(
-    currentPrice,
-    bidAskSpread,
-    orderbookImbalance,
-    volumeLevel,
+    params.oiDirection,
+    params.fundingLevel,
   );
 
   return {
