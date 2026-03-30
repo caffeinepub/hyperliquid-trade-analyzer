@@ -1,10 +1,10 @@
-import type { TradePosition } from '../backend';
-import { TradeDirectionEnum } from '../backend';
+import type { TradePosition } from "../backend";
+import { TradeDirectionEnum } from "../backend";
 
 /**
  * Fee Alpha Label: Categorical classification of fee efficiency
  */
-export type FeeAlphaLabel = 'Captured' | 'Paid' | 'Neutral';
+export type FeeAlphaLabel = "Captured" | "Paid" | "Neutral";
 
 /**
  * Fee Alpha Score: Numeric score representing fee efficiency
@@ -23,9 +23,9 @@ export interface FeeAlphaData {
  * Compute Fee Alpha label from position fee
  */
 export function getFeeAlphaLabel(fee: number): FeeAlphaLabel {
-  if (fee < 0) return 'Captured';
-  if (fee > 0) return 'Paid';
-  return 'Neutral';
+  if (fee < 0) return "Captured";
+  if (fee > 0) return "Paid";
+  return "Neutral";
 }
 
 /**
@@ -37,7 +37,7 @@ export function getFeeAlphaLabel(fee: number): FeeAlphaLabel {
 export function computeFeeAlpha(position: TradePosition): FeeAlphaData {
   const notional = Math.abs(position.entryPrice * position.positionSize);
   const score = notional > 0 ? (-position.fee / notional) * 10000 : 0;
-  
+
   return {
     label: getFeeAlphaLabel(position.fee),
     score,
@@ -58,12 +58,12 @@ export function formatFeeAlphaScore(score: number): string {
  */
 export function getFeeAlphaColor(label: FeeAlphaLabel): string {
   switch (label) {
-    case 'Captured':
-      return 'text-success';
-    case 'Paid':
-      return 'text-destructive';
-    case 'Neutral':
-      return 'text-muted-foreground';
+    case "Captured":
+      return "text-success";
+    case "Paid":
+      return "text-destructive";
+    case "Neutral":
+      return "text-muted-foreground";
   }
 }
 
@@ -80,18 +80,20 @@ export function calculateNetFeeAlpha(positions: TradePosition[]): number {
 /**
  * Aggregation: Count positions by Fee Alpha label
  */
-export function countByFeeAlphaLabel(positions: TradePosition[]): Record<FeeAlphaLabel, number> {
+export function countByFeeAlphaLabel(
+  positions: TradePosition[],
+): Record<FeeAlphaLabel, number> {
   const counts: Record<FeeAlphaLabel, number> = {
     Captured: 0,
     Paid: 0,
     Neutral: 0,
   };
-  
-  positions.forEach(p => {
+
+  for (const p of positions) {
     const label = getFeeAlphaLabel(p.fee);
     counts[label]++;
-  });
-  
+  }
+
   return counts;
 }
 
@@ -107,28 +109,30 @@ export function groupByAssetFeeAlpha(positions: TradePosition[]): Array<{
   paidCount: number;
 }> {
   const assetMap = new Map<string, TradePosition[]>();
-  
-  positions.forEach(p => {
+
+  for (const p of positions) {
     if (!assetMap.has(p.symbol)) {
       assetMap.set(p.symbol, []);
     }
     assetMap.get(p.symbol)!.push(p);
-  });
-  
-  return Array.from(assetMap.entries()).map(([asset, trades]) => {
-    const netFeeAlpha = calculateNetFeeAlpha(trades);
-    const totalFees = trades.reduce((sum, t) => sum + t.fee, 0);
-    const counts = countByFeeAlphaLabel(trades);
-    
-    return {
-      asset,
-      netFeeAlpha,
-      totalFees,
-      tradeCount: trades.length,
-      capturedCount: counts.Captured,
-      paidCount: counts.Paid,
-    };
-  }).sort((a, b) => b.netFeeAlpha - a.netFeeAlpha);
+  }
+
+  return Array.from(assetMap.entries())
+    .map(([asset, trades]) => {
+      const netFeeAlpha = calculateNetFeeAlpha(trades);
+      const totalFees = trades.reduce((sum, t) => sum + t.fee, 0);
+      const counts = countByFeeAlphaLabel(trades);
+
+      return {
+        asset,
+        netFeeAlpha,
+        totalFees,
+        tradeCount: trades.length,
+        capturedCount: counts.Captured,
+        paidCount: counts.Paid,
+      };
+    })
+    .sort((a, b) => b.netFeeAlpha - a.netFeeAlpha);
 }
 
 /**
@@ -143,9 +147,13 @@ export function groupByDirectionFeeAlpha(positions: TradePosition[]): Array<{
   capturedCount: number;
   paidCount: number;
 }> {
-  const longPositions = positions.filter(p => p.direction === TradeDirectionEnum.long_);
-  const shortPositions = positions.filter(p => p.direction === TradeDirectionEnum.short_);
-  
+  const longPositions = positions.filter(
+    (p) => p.direction === TradeDirectionEnum.long_,
+  );
+  const shortPositions = positions.filter(
+    (p) => p.direction === TradeDirectionEnum.short_,
+  );
+
   const result: Array<{
     direction: TradeDirectionEnum;
     directionLabel: string;
@@ -155,12 +163,12 @@ export function groupByDirectionFeeAlpha(positions: TradePosition[]): Array<{
     capturedCount: number;
     paidCount: number;
   }> = [];
-  
+
   if (longPositions.length > 0) {
     const counts = countByFeeAlphaLabel(longPositions);
     result.push({
       direction: TradeDirectionEnum.long_,
-      directionLabel: 'Long',
+      directionLabel: "Long",
       netFeeAlpha: calculateNetFeeAlpha(longPositions),
       totalFees: longPositions.reduce((sum, p) => sum + p.fee, 0),
       tradeCount: longPositions.length,
@@ -168,12 +176,12 @@ export function groupByDirectionFeeAlpha(positions: TradePosition[]): Array<{
       paidCount: counts.Paid,
     });
   }
-  
+
   if (shortPositions.length > 0) {
     const counts = countByFeeAlphaLabel(shortPositions);
     result.push({
       direction: TradeDirectionEnum.short_,
-      directionLabel: 'Short',
+      directionLabel: "Short",
       netFeeAlpha: calculateNetFeeAlpha(shortPositions),
       totalFees: shortPositions.reduce((sum, p) => sum + p.fee, 0),
       tradeCount: shortPositions.length,
@@ -181,24 +189,29 @@ export function groupByDirectionFeeAlpha(positions: TradePosition[]): Array<{
       paidCount: counts.Paid,
     });
   }
-  
+
   return result;
 }
 
 /**
  * Get top Fee Alpha winners (most captured) and losers (most paid)
  */
-export function getTopFeeAlphaTrades(positions: TradePosition[], limit: number = 10): {
+export function getTopFeeAlphaTrades(
+  positions: TradePosition[],
+  limit = 10,
+): {
   winners: Array<{ position: TradePosition; alpha: FeeAlphaData }>;
   losers: Array<{ position: TradePosition; alpha: FeeAlphaData }>;
 } {
-  const tradesWithAlpha = positions.map(p => ({
+  const tradesWithAlpha = positions.map((p) => ({
     position: p,
     alpha: computeFeeAlpha(p),
   }));
-  
-  const sorted = [...tradesWithAlpha].sort((a, b) => b.alpha.score - a.alpha.score);
-  
+
+  const sorted = [...tradesWithAlpha].sort(
+    (a, b) => b.alpha.score - a.alpha.score,
+  );
+
   return {
     winners: sorted.slice(0, limit),
     losers: sorted.slice(-limit).reverse(),
@@ -211,12 +224,12 @@ export function getTopFeeAlphaTrades(positions: TradePosition[], limit: number =
 export function compareFeeAlpha(a: TradePosition, b: TradePosition): number {
   const alphaA = computeFeeAlpha(a);
   const alphaB = computeFeeAlpha(b);
-  
+
   // Primary: by score (descending)
   if (alphaB.score !== alphaA.score) {
     return alphaB.score - alphaA.score;
   }
-  
+
   // Tie-breaker: by tradeId
   return a.tradeId.localeCompare(b.tradeId);
 }

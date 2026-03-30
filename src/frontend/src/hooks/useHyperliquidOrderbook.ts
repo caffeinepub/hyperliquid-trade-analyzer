@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useActor } from './useActor';
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useActor } from "./useActor";
 
 interface OrderbookLevel {
   price: number;
@@ -50,16 +50,16 @@ export function useHyperliquidOrderbook({
     try {
       // Try direct fetch first
       let data: any = null;
-      let usedBackend = false;
+      let _usedBackend = false;
 
       try {
-        const response = await fetch(`https://api.hyperliquid.xyz/info`, {
-          method: 'POST',
+        const response = await fetch("https://api.hyperliquid.xyz/info", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            type: 'l2Book',
+            type: "l2Book",
             coin: symbol,
           }),
         });
@@ -70,42 +70,52 @@ export function useHyperliquidOrderbook({
 
         data = await response.json();
       } catch (fetchError) {
-        console.warn('[useHyperliquidOrderbook] Direct fetch failed, trying backend fallback:', fetchError);
-        
+        console.warn(
+          "[useHyperliquidOrderbook] Direct fetch failed, trying backend fallback:",
+          fetchError,
+        );
+
         // Fallback to backend
         if (actor) {
           try {
             const backendResult = await actor.getHyperliquidOrderBook(symbol);
             if (backendResult) {
               data = JSON.parse(backendResult);
-              usedBackend = true;
+              _usedBackend = true;
             }
           } catch (backendError) {
-            console.error('[useHyperliquidOrderbook] Backend fallback failed:', backendError);
-            throw new Error('Failed to fetch orderbook from both direct API and backend');
+            console.error(
+              "[useHyperliquidOrderbook] Backend fallback failed:",
+              backendError,
+            );
+            throw new Error(
+              "Failed to fetch orderbook from both direct API and backend",
+            );
           }
         } else {
-          throw new Error('Direct fetch failed and backend actor not available');
+          throw new Error(
+            "Direct fetch failed and backend actor not available",
+          );
         }
       }
 
       if (!data || !data.levels) {
-        throw new Error('Invalid orderbook data received');
+        throw new Error("Invalid orderbook data received");
       }
 
       // Parse the orderbook data
       const bids: OrderbookLevel[] = data.levels[0]
         .slice(0, depth)
         .map((level: any) => ({
-          price: parseFloat(level.px),
-          size: parseFloat(level.sz),
+          price: Number.parseFloat(level.px),
+          size: Number.parseFloat(level.sz),
         }));
 
       const asks: OrderbookLevel[] = data.levels[1]
         .slice(0, depth)
         .map((level: any) => ({
-          price: parseFloat(level.px),
-          size: parseFloat(level.sz),
+          price: Number.parseFloat(level.px),
+          size: Number.parseFloat(level.sz),
         }));
 
       // Calculate mid price
@@ -119,9 +129,11 @@ export function useHyperliquidOrderbook({
         setError(null);
       }
     } catch (err) {
-      console.error('[useHyperliquidOrderbook] Error fetching orderbook:', err);
+      console.error("[useHyperliquidOrderbook] Error fetching orderbook:", err);
       if (isMountedRef.current) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch orderbook');
+        setError(
+          err instanceof Error ? err.message : "Failed to fetch orderbook",
+        );
       }
     } finally {
       if (isMountedRef.current) {

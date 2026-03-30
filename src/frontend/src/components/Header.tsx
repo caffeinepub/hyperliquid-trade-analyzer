@@ -1,4 +1,4 @@
-import { TrendingUp } from 'lucide-react';
+import { TrendingUp } from "lucide-react";
 
 export default function Header() {
   return (
@@ -9,8 +9,12 @@ export default function Header() {
             <TrendingUp className="w-6 h-6 text-primary-foreground" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-foreground">Hyperliquid Trade Analyzer</h1>
-            <p className="text-xs text-muted-foreground">Analysieren Sie Ihre Handelsdaten</p>
+            <h1 className="text-xl font-bold text-foreground">
+              Hyperliquid Trade Analyzer
+            </h1>
+            <p className="text-xs text-muted-foreground">
+              Analysieren Sie Ihre Handelsdaten
+            </p>
           </div>
         </div>
       </div>

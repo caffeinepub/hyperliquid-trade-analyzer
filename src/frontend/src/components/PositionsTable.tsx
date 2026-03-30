@@ -1,27 +1,70 @@
-import { useState } from 'react';
-import { ChevronDown, ChevronUp, Info, Coins, CircleDollarSign, TrendingUp, TrendingDown } from 'lucide-react';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { TradeDirectionEnum } from '../backend';
-import type { TradePosition } from '../backend';
-import { formatCurrency, getStatusColor, getStatusLabel, getRiskLevelColor, getRiskLevelLabel, isMetal, isStablecoin, getMetalIcon, getStablecoinIcon, getMetalPositions, getStablecoinPositions, getDirectionLabel } from '../lib/utils';
-import { computeFeeAlpha, formatFeeAlphaScore, getFeeAlphaColor, compareFeeAlpha } from '../lib/feeAlpha';
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  ChevronDown,
+  ChevronUp,
+  CircleDollarSign,
+  Coins,
+  Info,
+  TrendingDown,
+  TrendingUp,
+} from "lucide-react";
+import { useState } from "react";
+import { TradeDirectionEnum } from "../backend";
+import type { TradePosition } from "../backend";
+import {
+  compareFeeAlpha,
+  computeFeeAlpha,
+  formatFeeAlphaScore,
+  getFeeAlphaColor,
+} from "../lib/feeAlpha";
+import {
+  formatCurrency,
+  getDirectionLabel,
+  getMetalIcon,
+  getMetalPositions,
+  getRiskLevelColor,
+  getRiskLevelLabel,
+  getStablecoinIcon,
+  getStablecoinPositions,
+  getStatusColor,
+  getStatusLabel,
+  isMetal,
+  isStablecoin,
+} from "../lib/tradeUtils";
 
 interface PositionsTableProps {
   positions: TradePosition[];
 }
 
-type SortOrder = 'newest' | 'oldest' | 'feeAlpha';
+type SortOrder = "newest" | "oldest" | "feeAlpha";
 
 function extractTimestamp(tradeId: string): Date | null {
-  const parts = tradeId.split('|');
+  const parts = tradeId.split("|");
   if (parts.length > 1) {
     const timestamp = new Date(parts[0]);
-    if (!isNaN(timestamp.getTime())) {
+    if (!Number.isNaN(timestamp.getTime())) {
       return timestamp;
     }
   }
@@ -31,14 +74,14 @@ function extractTimestamp(tradeId: string): Date | null {
 function compareByTime(a: TradePosition, b: TradePosition): number {
   const timeA = extractTimestamp(a.tradeId);
   const timeB = extractTimestamp(b.tradeId);
-  
+
   if (timeA && timeB) {
     return timeA.getTime() - timeB.getTime();
   }
-  
+
   if (timeA) return -1;
   if (timeB) return 1;
-  
+
   return a.tradeId.localeCompare(b.tradeId);
 }
 
@@ -47,25 +90,27 @@ function compareByTime(a: TradePosition, b: TradePosition): number {
  */
 function getLeverageColor(leverage: number | undefined): string {
   if (leverage === undefined) {
-    return 'text-muted-foreground';
+    return "text-muted-foreground";
   }
-  
+
   if (leverage >= 20) {
-    return 'text-destructive font-bold';
-  } else if (leverage >= 10) {
-    return 'text-orange-500 font-semibold';
-  } else if (leverage >= 5) {
-    return 'text-yellow-600 dark:text-yellow-500';
+    return "text-destructive font-bold";
   }
-  return 'text-foreground';
+  if (leverage >= 10) {
+    return "text-orange-500 font-semibold";
+  }
+  if (leverage >= 5) {
+    return "text-yellow-600 dark:text-yellow-500";
+  }
+  return "text-foreground";
 }
 
 export default function PositionsTable({ positions }: PositionsTableProps) {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
-  const [sortOrder, setSortOrder] = useState<SortOrder>('newest');
+  const [sortOrder, setSortOrder] = useState<SortOrder>("newest");
 
   const toggleRow = (tradeId: string) => {
-    setExpandedRows(prev => {
+    setExpandedRows((prev) => {
       const next = new Set(prev);
       if (next.has(tradeId)) {
         next.delete(tradeId);
@@ -77,17 +122,19 @@ export default function PositionsTable({ positions }: PositionsTableProps) {
   };
 
   const sortedPositions = [...positions].sort((a, b) => {
-    if (sortOrder === 'feeAlpha') {
+    if (sortOrder === "feeAlpha") {
       return compareFeeAlpha(a, b);
     }
     const comparison = compareByTime(a, b);
-    return sortOrder === 'newest' ? -comparison : comparison;
+    return sortOrder === "newest" ? -comparison : comparison;
   });
 
   const metalPositions = getMetalPositions(sortedPositions);
   const stablecoinPositions = getStablecoinPositions(sortedPositions);
-  const otherPositions = sortedPositions.filter(p => !isMetal(p.symbol) && !isStablecoin(p.symbol));
-  
+  const otherPositions = sortedPositions.filter(
+    (p) => !isMetal(p.symbol) && !isStablecoin(p.symbol),
+  );
+
   const hasMetals = metalPositions.length > 0;
   const hasStablecoins = stablecoinPositions.length > 0;
   const hasOthers = otherPositions.length > 0;
@@ -102,24 +149,24 @@ export default function PositionsTable({ positions }: PositionsTableProps) {
   }
 
   const renderPositionRow = (position: TradePosition) => {
-    const displayId = position.tradeId.includes('|') 
-      ? position.tradeId.split('|')[1] 
+    const displayId = position.tradeId.includes("|")
+      ? position.tradeId.split("|")[1]
       : position.tradeId;
-    
+
     const isMetalAsset = isMetal(position.symbol);
     const isStablecoinAsset = isStablecoin(position.symbol);
     const metalIcon = isMetalAsset ? getMetalIcon(position.symbol) : null;
     const stablecoinIcon = isStablecoinAsset ? getStablecoinIcon() : null;
     const isLong = position.direction === TradeDirectionEnum.long_;
-    
+
     // Use leverage from position (calculated in CSV parser)
     const leverage = position.leverage;
     const leverageColor = getLeverageColor(leverage);
-    
+
     // Compute Fee Alpha
     const feeAlpha = computeFeeAlpha(position);
     const feeAlphaColor = getFeeAlphaColor(feeAlpha.label);
-    
+
     return (
       <Collapsible
         key={position.tradeId}
@@ -128,10 +175,15 @@ export default function PositionsTable({ positions }: PositionsTableProps) {
         asChild
       >
         <>
-          <TableRow className={`cursor-pointer hover:bg-muted/50 ${
-            isMetalAsset ? 'bg-gradient-to-r from-amber-500/5 via-slate-500/5 to-orange-600/5' : 
-            isStablecoinAsset ? 'bg-gradient-to-r from-blue-500/5 via-green-500/5 to-purple-500/5' : ''
-          }`}>
+          <TableRow
+            className={`cursor-pointer hover:bg-muted/50 ${
+              isMetalAsset
+                ? "bg-gradient-to-r from-amber-500/5 via-slate-500/5 to-orange-600/5"
+                : isStablecoinAsset
+                  ? "bg-gradient-to-r from-blue-500/5 via-green-500/5 to-purple-500/5"
+                  : ""
+            }`}
+          >
             <TableCell>
               <CollapsibleTrigger asChild>
                 <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -146,28 +198,57 @@ export default function PositionsTable({ positions }: PositionsTableProps) {
             <TableCell className="font-mono text-sm">{displayId}</TableCell>
             <TableCell className="font-semibold">
               <div className="flex items-center gap-2">
-                {metalIcon && <img src={metalIcon} alt={position.symbol} className="w-5 h-5" />}
-                {stablecoinIcon && <img src={stablecoinIcon} alt={position.symbol} className="w-5 h-5" />}
+                {metalIcon && (
+                  <img
+                    src={metalIcon}
+                    alt={position.symbol}
+                    className="w-5 h-5"
+                  />
+                )}
+                {stablecoinIcon && (
+                  <img
+                    src={stablecoinIcon}
+                    alt={position.symbol}
+                    className="w-5 h-5"
+                  />
+                )}
                 {position.symbol}
                 {isMetalAsset && <Coins className="w-4 h-4 text-amber-500" />}
-                {isStablecoinAsset && <CircleDollarSign className="w-4 h-4 text-blue-500" />}
+                {isStablecoinAsset && (
+                  <CircleDollarSign className="w-4 h-4 text-blue-500" />
+                )}
               </div>
             </TableCell>
             <TableCell>
-              <Badge variant={isLong ? 'default' : 'secondary'} className="gap-1">
-                {isLong ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+              <Badge
+                variant={isLong ? "default" : "secondary"}
+                className="gap-1"
+              >
+                {isLong ? (
+                  <TrendingUp className="w-3 h-3" />
+                ) : (
+                  <TrendingDown className="w-3 h-3" />
+                )}
                 {getDirectionLabel(position.direction)}
               </Badge>
             </TableCell>
-            <TableCell className="text-right">{position.positionSize.toFixed(4)}</TableCell>
-            <TableCell className="text-right">{formatCurrency(position.entryPrice)}</TableCell>
-            <TableCell className={`text-right font-semibold ${
-              (position.realizedPnl + position.unrealizedPnl) >= 0 ? 'text-success' : 'text-destructive'
-            }`}>
+            <TableCell className="text-right">
+              {position.positionSize.toFixed(4)}
+            </TableCell>
+            <TableCell className="text-right">
+              {formatCurrency(position.entryPrice)}
+            </TableCell>
+            <TableCell
+              className={`text-right font-semibold ${
+                (position.realizedPnl + position.unrealizedPnl) >= 0
+                  ? "text-success"
+                  : "text-destructive"
+              }`}
+            >
               {formatCurrency(position.realizedPnl + position.unrealizedPnl)}
             </TableCell>
             <TableCell className={`text-right ${leverageColor}`}>
-              {leverage !== undefined ? `${leverage.toFixed(2)}x` : 'N/A'}
+              {leverage !== undefined ? `${leverage.toFixed(2)}x` : "N/A"}
             </TableCell>
             <TableCell className="text-right">
               <div className="flex flex-col items-end gap-1">
@@ -185,7 +266,10 @@ export default function PositionsTable({ positions }: PositionsTableProps) {
               </Badge>
             </TableCell>
             <TableCell>
-              <Badge variant="outline" className={getRiskLevelColor(position.riskLevel)}>
+              <Badge
+                variant="outline"
+                className={getRiskLevelColor(position.riskLevel)}
+              >
                 {getRiskLevelLabel(position.riskLevel)}
               </Badge>
             </TableCell>
@@ -194,7 +278,9 @@ export default function PositionsTable({ positions }: PositionsTableProps) {
             <TableRow>
               <TableCell colSpan={11} className="bg-muted/30">
                 <div className="py-4 px-2 space-y-3">
-                  <h4 className="font-semibold text-sm mb-3">Positionsdetails</h4>
+                  <h4 className="font-semibold text-sm mb-3">
+                    Positionsdetails
+                  </h4>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                     <div>
                       <p className="text-muted-foreground">Benutzer</p>
@@ -203,47 +289,69 @@ export default function PositionsTable({ positions }: PositionsTableProps) {
                     <div>
                       <p className="text-muted-foreground">Richtung</p>
                       <p className="font-medium flex items-center gap-1">
-                        {isLong ? <TrendingUp className="w-4 h-4 text-success" /> : <TrendingDown className="w-4 h-4 text-destructive" />}
+                        {isLong ? (
+                          <TrendingUp className="w-4 h-4 text-success" />
+                        ) : (
+                          <TrendingDown className="w-4 h-4 text-destructive" />
+                        )}
                         {getDirectionLabel(position.direction)}
                       </p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Verwendete Margin</p>
-                      <p className="font-medium">{formatCurrency(position.marginUsed)}</p>
+                      <p className="font-medium">
+                        {formatCurrency(position.marginUsed)}
+                      </p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Hebel</p>
                       <p className={`font-medium ${leverageColor}`}>
-                        {leverage !== undefined ? `${leverage.toFixed(2)}x` : 'N/A'}
+                        {leverage !== undefined
+                          ? `${leverage.toFixed(2)}x`
+                          : "N/A"}
                       </p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Positionswert</p>
                       <p className="font-medium">
-                        {formatCurrency(position.entryPrice * Math.abs(position.positionSize))}
+                        {formatCurrency(
+                          position.entryPrice * Math.abs(position.positionSize),
+                        )}
                       </p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Realisierter PnL</p>
-                      <p className={`font-medium ${position.realizedPnl >= 0 ? 'text-success' : 'text-destructive'}`}>
+                      <p
+                        className={`font-medium ${position.realizedPnl >= 0 ? "text-success" : "text-destructive"}`}
+                      >
                         {formatCurrency(position.realizedPnl)}
                       </p>
                     </div>
                     <div>
-                      <p className="text-muted-foreground">Unrealisierter PnL</p>
-                      <p className={`font-medium ${position.unrealizedPnl >= 0 ? 'text-success' : 'text-destructive'}`}>
+                      <p className="text-muted-foreground">
+                        Unrealisierter PnL
+                      </p>
+                      <p
+                        className={`font-medium ${position.unrealizedPnl >= 0 ? "text-success" : "text-destructive"}`}
+                      >
                         {formatCurrency(position.unrealizedPnl)}
                       </p>
                     </div>
                     {position.liquidationPrice && (
                       <div>
-                        <p className="text-muted-foreground">Liquidationspreis</p>
-                        <p className="font-medium">{formatCurrency(position.liquidationPrice)}</p>
+                        <p className="text-muted-foreground">
+                          Liquidationspreis
+                        </p>
+                        <p className="font-medium">
+                          {formatCurrency(position.liquidationPrice)}
+                        </p>
                       </div>
                     )}
                     <div>
                       <p className="text-muted-foreground">Gebühr</p>
-                      <p className={`font-medium ${position.fee >= 0 ? 'text-destructive' : 'text-success'}`}>
+                      <p
+                        className={`font-medium ${position.fee >= 0 ? "text-destructive" : "text-success"}`}
+                      >
                         {formatCurrency(position.fee)}
                       </p>
                     </div>
@@ -264,10 +372,9 @@ export default function PositionsTable({ positions }: PositionsTableProps) {
                       <p className="text-sm text-orange-600 dark:text-orange-400 flex items-center gap-2">
                         <Info className="w-4 h-4" />
                         <span>
-                          {leverage >= 20 
+                          {leverage >= 20
                             ? `Sehr hoher Hebel (${leverage.toFixed(2)}x) - Erhöhtes Liquidationsrisiko`
-                            : `Hoher Hebel (${leverage.toFixed(2)}x) - Vorsicht geboten`
-                          }
+                            : `Hoher Hebel (${leverage.toFixed(2)}x) - Vorsicht geboten`}
                         </span>
                       </p>
                     </div>
@@ -289,7 +396,10 @@ export default function PositionsTable({ positions }: PositionsTableProps) {
           <label htmlFor="sort-order" className="text-sm font-medium">
             Sortierung:
           </label>
-          <Select value={sortOrder} onValueChange={(value) => setSortOrder(value as SortOrder)}>
+          <Select
+            value={sortOrder}
+            onValueChange={(value) => setSortOrder(value as SortOrder)}
+          >
             <SelectTrigger id="sort-order" className="w-[200px]">
               <SelectValue />
             </SelectTrigger>
@@ -301,7 +411,8 @@ export default function PositionsTable({ positions }: PositionsTableProps) {
           </Select>
         </div>
         <div className="text-sm text-muted-foreground">
-          {positions.length} {positions.length === 1 ? 'Position' : 'Positionen'}
+          {positions.length}{" "}
+          {positions.length === 1 ? "Position" : "Positionen"}
         </div>
       </div>
 
@@ -319,7 +430,7 @@ export default function PositionsTable({ positions }: PositionsTableProps) {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[50px]"></TableHead>
+                    <TableHead className="w-[50px]" />
                     <TableHead>Trade ID</TableHead>
                     <TableHead>Symbol</TableHead>
                     <TableHead>Richtung</TableHead>
@@ -332,9 +443,7 @@ export default function PositionsTable({ positions }: PositionsTableProps) {
                     <TableHead>Risiko</TableHead>
                   </TableRow>
                 </TableHeader>
-                <TableBody>
-                  {metalPositions.map(renderPositionRow)}
-                </TableBody>
+                <TableBody>{metalPositions.map(renderPositionRow)}</TableBody>
               </Table>
             </div>
           </ScrollArea>
@@ -355,7 +464,7 @@ export default function PositionsTable({ positions }: PositionsTableProps) {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[50px]"></TableHead>
+                    <TableHead className="w-[50px]" />
                     <TableHead>Trade ID</TableHead>
                     <TableHead>Symbol</TableHead>
                     <TableHead>Richtung</TableHead>
@@ -393,7 +502,7 @@ export default function PositionsTable({ positions }: PositionsTableProps) {
                 {!hasMetals && !hasStablecoins && (
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[50px]"></TableHead>
+                      <TableHead className="w-[50px]" />
                       <TableHead>Trade ID</TableHead>
                       <TableHead>Symbol</TableHead>
                       <TableHead>Richtung</TableHead>
@@ -407,9 +516,7 @@ export default function PositionsTable({ positions }: PositionsTableProps) {
                     </TableRow>
                   </TableHeader>
                 )}
-                <TableBody>
-                  {otherPositions.map(renderPositionRow)}
-                </TableBody>
+                <TableBody>{otherPositions.map(renderPositionRow)}</TableBody>
               </Table>
             </div>
           </ScrollArea>

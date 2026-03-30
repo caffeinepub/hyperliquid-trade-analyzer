@@ -16,19 +16,19 @@ export interface NormalizedOrderbook {
  */
 export function normalizeOrderbook(
   bids: { price: number; size: number }[],
-  asks: { price: number; size: number }[]
+  asks: { price: number; size: number }[],
 ): NormalizedOrderbook {
-  const allSizes = [...bids.map(b => b.size), ...asks.map(a => a.size)];
+  const allSizes = [...bids.map((b) => b.size), ...asks.map((a) => a.size)];
   const maxSize = Math.max(...allSizes);
   const minSize = Math.min(...allSizes);
   const range = maxSize - minSize || 1;
 
-  const normalizeBids = bids.map(bid => ({
+  const normalizeBids = bids.map((bid) => ({
     ...bid,
     normalized: (bid.size - minSize) / range,
   }));
 
-  const normalizeAsks = asks.map(ask => ({
+  const normalizeAsks = asks.map((ask) => ({
     ...ask,
     normalized: (ask.size - minSize) / range,
   }));
@@ -47,7 +47,7 @@ export function lerp(start: number, end: number, t: number): number {
  * Ease-out cubic easing function for smooth transitions
  */
 export function easeOutCubic(t: number): number {
-  return 1 - Math.pow(1 - t, 3);
+  return 1 - (1 - t) ** 3;
 }
 
 /**
@@ -56,7 +56,7 @@ export function easeOutCubic(t: number): number {
 export function interpolateOrderbooks(
   from: NormalizedOrderbook,
   to: NormalizedOrderbook,
-  t: number
+  t: number,
 ): NormalizedOrderbook {
   const easedT = easeOutCubic(Math.max(0, Math.min(1, t)));
 
@@ -94,8 +94,8 @@ export function interpolateOrderbooks(
  */
 export function getBidColor(normalized: number): string {
   // Light green to dark green gradient
-  const lightness = 0.75 - (normalized * 0.40); // 0.75 (light) to 0.35 (dark)
-  const chroma = 0.15 + (normalized * 0.05); // 0.15 to 0.20
+  const lightness = 0.75 - normalized * 0.4; // 0.75 (light) to 0.35 (dark)
+  const chroma = 0.15 + normalized * 0.05; // 0.15 to 0.20
   return `oklch(${lightness} ${chroma} 145)`;
 }
 
@@ -104,8 +104,8 @@ export function getBidColor(normalized: number): string {
  */
 export function getAskColor(normalized: number): string {
   // Light red to dark red gradient
-  const lightness = 0.75 - (normalized * 0.40); // 0.75 (light) to 0.35 (dark)
-  const chroma = 0.15 + (normalized * 0.05); // 0.15 to 0.20
+  const lightness = 0.75 - normalized * 0.4; // 0.75 (light) to 0.35 (dark)
+  const chroma = 0.15 + normalized * 0.05; // 0.15 to 0.20
   return `oklch(${lightness} ${chroma} 25)`;
 }
 
@@ -133,7 +133,7 @@ export function drawUnifiedTriangle(
   priceColumnWidth: number,
   heatmapWidth: number,
   isBid: boolean,
-  scaleFactor: number
+  scaleFactor: number,
 ): void {
   if (levels.length === 0) return;
 
@@ -145,7 +145,7 @@ export function drawUnifiedTriangle(
     priceColumnWidth,
     startY,
     priceColumnWidth,
-    startY + levels.length * rowHeight
+    startY + levels.length * rowHeight,
   );
 
   // Add color stops for smooth gradient
@@ -166,14 +166,17 @@ export function drawUnifiedTriangle(
   for (let i = 0; i < levels.length; i++) {
     const y = startY + i * rowHeight;
     const normalizedCumulative = cumulative[i] / maxCumulative;
-    const x = priceColumnWidth + (heatmapWidth * normalizedCumulative * scaleFactor);
+    const x =
+      priceColumnWidth + heatmapWidth * normalizedCumulative * scaleFactor;
     ctx.lineTo(x, y);
   }
 
   // Draw bottom-right corner
   const lastY = startY + levels.length * rowHeight;
-  const lastNormalizedCumulative = cumulative[cumulative.length - 1] / maxCumulative;
-  const lastX = priceColumnWidth + (heatmapWidth * lastNormalizedCumulative * scaleFactor);
+  const lastNormalizedCumulative =
+    cumulative[cumulative.length - 1] / maxCumulative;
+  const lastX =
+    priceColumnWidth + heatmapWidth * lastNormalizedCumulative * scaleFactor;
   ctx.lineTo(lastX, lastY);
 
   // Draw back to left edge
@@ -187,7 +190,7 @@ export function drawUnifiedTriangle(
  */
 export function calculateScaleFactors(
   bids: NormalizedLevel[],
-  asks: NormalizedLevel[]
+  asks: NormalizedLevel[],
 ): { bidScale: number; askScale: number } {
   const totalBidSize = bids.reduce((sum, bid) => sum + bid.size, 0);
   const totalAskSize = asks.reduce((sum, ask) => sum + ask.size, 0);
@@ -203,8 +206,8 @@ export function calculateScaleFactors(
 
   // Scale factors: dominant side gets closer to 1.0, weaker side gets reduced
   // Use a power function to make the difference more visible
-  const bidScale = Math.pow(bidProportion / 0.5, 0.6);
-  const askScale = Math.pow(askProportion / 0.5, 0.6);
+  const bidScale = (bidProportion / 0.5) ** 0.6;
+  const askScale = (askProportion / 0.5) ** 0.6;
 
   return { bidScale, askScale };
 }
@@ -219,7 +222,7 @@ export function drawClusterRegion(
   rowHeight: number,
   priceColumnWidth: number,
   heatmapWidth: number,
-  isBid: boolean
+  isBid: boolean,
 ): void {
   if (levels.length === 0) return;
 
@@ -230,17 +233,19 @@ export function drawClusterRegion(
   levels.forEach((level, index) => {
     const y = startY + index * rowHeight;
     const normalizedCumulative = cumulative[index] / maxCumulative;
-    
+
     // Create gradient for smooth color transition
     const gradient = ctx.createLinearGradient(
       priceColumnWidth,
       y,
       priceColumnWidth + heatmapWidth,
-      y
+      y,
     );
 
-    const color = isBid ? getBidColor(level.normalized) : getAskColor(level.normalized);
-    const fadeColor = isBid ? 'oklch(0.16 0 0)' : 'oklch(0.16 0 0)';
+    const color = isBid
+      ? getBidColor(level.normalized)
+      : getAskColor(level.normalized);
+    const fadeColor = isBid ? "oklch(0.16 0 0)" : "oklch(0.16 0 0)";
 
     // Width based on cumulative depth for cluster effect
     const barWidth = heatmapWidth * normalizedCumulative;

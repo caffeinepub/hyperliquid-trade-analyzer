@@ -1,20 +1,33 @@
-import { useState } from 'react';
-import { ArrowLeft, Download, TrendingUp, TrendingDown, AlertTriangle, Shield } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { PositionStatus } from '../backend';
-import SummaryCards from './SummaryCards';
-import ChartsSection from './ChartsSection';
-import PositionsTable from './PositionsTable';
-import AssetSelector from './AssetSelector';
-import FeeOverview from './FeeOverview';
-import type { AnalysisData } from '../App';
-import { exportToCSV } from '../lib/csvExporter';
-import { getFilteredPositions } from '../lib/utils';
-import { toast } from 'sonner';
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Download,
+  Shield,
+  TrendingDown,
+  TrendingUp,
+} from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+import type { AnalysisData } from "../App";
+import { PositionStatus } from "../backend";
+import { exportToCSV } from "../lib/csvExporter";
+import { getFilteredPositions } from "../lib/tradeUtils";
+import AssetSelector from "./AssetSelector";
+import ChartsSection from "./ChartsSection";
+import FeeOverview from "./FeeOverview";
+import PositionsTable from "./PositionsTable";
+import SummaryCards from "./SummaryCards";
 
 interface AnalysisResultsProps {
   data: AnalysisData;
@@ -23,16 +36,21 @@ interface AnalysisResultsProps {
   onAssetChange: (asset: string | null) => void;
 }
 
-export default function AnalysisResults({ data, onReset, selectedAsset, onAssetChange }: AnalysisResultsProps) {
-  const [activeTab, setActiveTab] = useState('all');
+export default function AnalysisResults({
+  data,
+  onReset,
+  selectedAsset,
+  onAssetChange,
+}: AnalysisResultsProps) {
+  const [activeTab, setActiveTab] = useState("all");
 
   const handleExport = () => {
     try {
       exportToCSV(data);
-      toast.success('Analyseergebnisse erfolgreich exportiert!');
+      toast.success("Analyseergebnisse erfolgreich exportiert!");
     } catch (err) {
-      console.error('[AnalysisResults] Export-Fehler:', err);
-      toast.error('Fehler beim Exportieren der Daten');
+      console.error("[AnalysisResults] Export-Fehler:", err);
+      toast.error("Fehler beim Exportieren der Daten");
     }
   };
 
@@ -42,7 +60,8 @@ export default function AnalysisResults({ data, onReset, selectedAsset, onAssetC
       <div className="space-y-6">
         <Alert variant="destructive">
           <AlertDescription>
-            Keine Daten zum Anzeigen verfügbar. Bitte laden Sie eine CSV-Datei hoch.
+            Keine Daten zum Anzeigen verfügbar. Bitte laden Sie eine CSV-Datei
+            hoch.
           </AlertDescription>
         </Alert>
         <div className="text-center">
@@ -58,9 +77,13 @@ export default function AnalysisResults({ data, onReset, selectedAsset, onAssetC
   // Filter positions by selected asset
   const filteredPositions = getFilteredPositions(data.positions, selectedAsset);
 
-  const liquidatedPositions = filteredPositions.filter(p => p.isLiquidated);
-  const safePositions = filteredPositions.filter(p => !p.isLiquidated && p.status === PositionStatus.safe);
-  const atRiskPositions = filteredPositions.filter(p => !p.isLiquidated && p.status === PositionStatus.atRisk);
+  const liquidatedPositions = filteredPositions.filter((p) => p.isLiquidated);
+  const safePositions = filteredPositions.filter(
+    (p) => !p.isLiquidated && p.status === PositionStatus.safe,
+  );
+  const atRiskPositions = filteredPositions.filter(
+    (p) => !p.isLiquidated && p.status === PositionStatus.atRisk,
+  );
 
   return (
     <ScrollArea className="h-[calc(100vh-8rem)]">
@@ -68,9 +91,12 @@ export default function AnalysisResults({ data, onReset, selectedAsset, onAssetC
         {/* Header Actions */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-bold text-foreground">Analyseergebnisse</h2>
+            <h2 className="text-2xl font-bold text-foreground">
+              Analyseergebnisse
+            </h2>
             <p className="text-sm text-muted-foreground mt-1">
-              Datei: {data.fileName || 'Unbekannt'} • {filteredPositions.length} Position{filteredPositions.length !== 1 ? 'en' : ''}
+              Datei: {data.fileName || "Unbekannt"} • {filteredPositions.length}{" "}
+              Position{filteredPositions.length !== 1 ? "en" : ""}
               {selectedAsset && ` • ${selectedAsset}`}
             </p>
           </div>
@@ -87,7 +113,7 @@ export default function AnalysisResults({ data, onReset, selectedAsset, onAssetC
         </div>
 
         {/* Asset Selector */}
-        <AssetSelector 
+        <AssetSelector
           positions={data.positions}
           selectedAsset={selectedAsset}
           onAssetChange={onAssetChange}
@@ -95,8 +121,8 @@ export default function AnalysisResults({ data, onReset, selectedAsset, onAssetC
 
         {/* Summary Cards */}
         {data.summary && (
-          <SummaryCards 
-            summary={data.summary} 
+          <SummaryCards
+            summary={data.summary}
             positions={filteredPositions}
             selectedAsset={selectedAsset}
           />
@@ -106,7 +132,7 @@ export default function AnalysisResults({ data, onReset, selectedAsset, onAssetC
         <FeeOverview positions={filteredPositions} />
 
         {/* Charts Section */}
-        <ChartsSection 
+        <ChartsSection
           positions={filteredPositions}
           allPositions={data.positions}
           selectedAsset={selectedAsset}
@@ -127,19 +153,26 @@ export default function AnalysisResults({ data, onReset, selectedAsset, onAssetC
               <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="all" className="flex items-center gap-2">
                   <TrendingUp className="w-4 h-4" />
-                  <span className="hidden sm:inline">Alle</span> ({filteredPositions.length})
+                  <span className="hidden sm:inline">Alle</span> (
+                  {filteredPositions.length})
                 </TabsTrigger>
                 <TabsTrigger value="safe" className="flex items-center gap-2">
                   <Shield className="w-4 h-4" />
-                  <span className="hidden sm:inline">Sicher</span> ({safePositions.length})
+                  <span className="hidden sm:inline">Sicher</span> (
+                  {safePositions.length})
                 </TabsTrigger>
                 <TabsTrigger value="atRisk" className="flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4" />
-                  <span className="hidden sm:inline">Risiko</span> ({atRiskPositions.length})
+                  <span className="hidden sm:inline">Risiko</span> (
+                  {atRiskPositions.length})
                 </TabsTrigger>
-                <TabsTrigger value="liquidated" className="flex items-center gap-2">
+                <TabsTrigger
+                  value="liquidated"
+                  className="flex items-center gap-2"
+                >
                   <TrendingDown className="w-4 h-4" />
-                  <span className="hidden sm:inline">Liquidiert</span> ({liquidatedPositions.length})
+                  <span className="hidden sm:inline">Liquidiert</span> (
+                  {liquidatedPositions.length})
                 </TabsTrigger>
               </TabsList>
 
@@ -151,9 +184,9 @@ export default function AnalysisResults({ data, onReset, selectedAsset, onAssetC
                 ) : (
                   <Alert>
                     <AlertDescription>
-                      {selectedAsset 
+                      {selectedAsset
                         ? `Keine Positionen für ${selectedAsset} gefunden.`
-                        : 'Keine Positionen vorhanden.'}
+                        : "Keine Positionen vorhanden."}
                     </AlertDescription>
                   </Alert>
                 )}
@@ -167,9 +200,9 @@ export default function AnalysisResults({ data, onReset, selectedAsset, onAssetC
                 ) : (
                   <Alert>
                     <AlertDescription>
-                      {selectedAsset 
+                      {selectedAsset
                         ? `Keine sicheren Positionen für ${selectedAsset} gefunden.`
-                        : 'Keine sicheren Positionen gefunden.'}
+                        : "Keine sicheren Positionen gefunden."}
                     </AlertDescription>
                   </Alert>
                 )}
@@ -183,9 +216,9 @@ export default function AnalysisResults({ data, onReset, selectedAsset, onAssetC
                 ) : (
                   <Alert>
                     <AlertDescription>
-                      {selectedAsset 
+                      {selectedAsset
                         ? `Keine Positionen mit Risiko für ${selectedAsset} gefunden.`
-                        : 'Keine Positionen mit Risiko gefunden.'}
+                        : "Keine Positionen mit Risiko gefunden."}
                     </AlertDescription>
                   </Alert>
                 )}
@@ -199,9 +232,9 @@ export default function AnalysisResults({ data, onReset, selectedAsset, onAssetC
                 ) : (
                   <Alert>
                     <AlertDescription>
-                      {selectedAsset 
+                      {selectedAsset
                         ? `Keine liquidierten Positionen für ${selectedAsset} gefunden.`
-                        : 'Keine liquidierten Positionen gefunden.'}
+                        : "Keine liquidierten Positionen gefunden."}
                     </AlertDescription>
                   </Alert>
                 )}
