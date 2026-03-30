@@ -9,10 +9,29 @@ export interface HyperliquidLiveData {
 }
 
 /**
+ * Alias map: maps user-friendly names to the exact coin name used by Hyperliquid API.
+ * Add entries here whenever an asset has a different name in the UI vs. the API.
+ */
+const ASSET_ALIASES: Record<string, string> = {
+  BRENTOIL: "BRENT",
+  BRENTOIL_USDC: "BRENT",
+  BRENT_OIL: "BRENT",
+  CRUDE: "BRENT",
+  WTI: "OIL",
+  GOLD: "XAU",
+  SILVER: "XAG",
+  SILBER: "XAG",
+  COPPER: "XCU",
+  KUPFER: "XCU",
+};
+
+/**
  * Extracts the base coin name from user input like "BTC/USDC", "BRENTOIL/USDC", "XAG", etc.
+ * Also resolves aliases to their canonical Hyperliquid API names.
  */
 function extractCoinName(input: string): string {
-  return input.split("/")[0].split("-")[0].trim().toUpperCase();
+  const raw = input.split("/")[0].split("-")[0].trim().toUpperCase();
+  return ASSET_ALIASES[raw] ?? raw;
 }
 
 /**
@@ -63,8 +82,16 @@ export async function fetchHyperliquidLiveData(
     );
 
     if (coinIndex === -1) {
+      // Build a helpful suggestion showing the resolved name if it differs from input
+      const originalInput = coin
+        .split("/")[0]
+        .split("-")[0]
+        .trim()
+        .toUpperCase();
+      const resolvedInfo =
+        originalInput !== coinName ? ` (versucht als "${coinName}")` : "";
       throw new Error(
-        `Asset "${coinName}" nicht auf Hyperliquid gefunden. Bitte Namen prüfen (z.B. BTC, XAG, BRENTOIL).`,
+        `Asset "${originalInput}"${resolvedInfo} nicht auf Hyperliquid gefunden. Bitte Namen prüfen (z.B. BTC, ETH, XAG, BRENT, OIL, XAU).`,
       );
     }
 
