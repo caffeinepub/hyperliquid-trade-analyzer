@@ -19,8 +19,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  ASSETS_NOT_ON_HL_PERPS,
-  ASSET_ALIASES,
   type HyperliquidLiveData,
   fetchHyperliquidLiveData,
 } from "@/lib/hyperliquidApi";
@@ -150,14 +148,6 @@ export default function TradeEntryChecker() {
 
   const resultsRef = useRef<HTMLDivElement>(null);
 
-  const isManualOnlyAsset = (name: string): boolean => {
-    const raw = name.split("/")[0].split("-")[0].trim().toUpperCase();
-    const resolved = ASSET_ALIASES[raw] ?? raw;
-    return (
-      ASSETS_NOT_ON_HL_PERPS.has(raw) || ASSETS_NOT_ON_HL_PERPS.has(resolved)
-    );
-  };
-
   const TV_LINKS: Record<string, string> = {
     SILVER: "https://www.tradingview.com/chart/?symbol=XAGUSD",
     XAG: "https://www.tradingview.com/chart/?symbol=XAGUSD",
@@ -183,19 +173,9 @@ export default function TradeEntryChecker() {
     setForm((prev) => ({ ...prev, [field]: value }));
     // Reset live data when asset changes
     if (field === "assetName") {
-      const trimmed = value.trim();
-      const manualOnly = trimmed !== "" && isManualOnlyAsset(trimmed);
       setLiveDataRaw(null);
-      if (manualOnly) {
-        const displayName = trimmed.toUpperCase();
-        setLiveDataError(
-          `"${displayName}" ist als Perpetual nicht auf Hyperliquid verfügbar. Bitte Preis und Werte manuell eingeben (z.B. von TradingView).`,
-        );
-        setLiveDataStatus("error");
-      } else {
-        setLiveDataStatus("idle");
-        setLiveDataError("");
-      }
+      setLiveDataStatus("idle");
+      setLiveDataError("");
       setForm((prev) => ({
         ...prev,
         assetName: value,
@@ -634,17 +614,28 @@ export default function TradeEntryChecker() {
                   <AlertTriangle className="h-4 w-4 text-amber-400" />
                   <AlertDescription className="text-xs text-amber-300 space-y-2">
                     <p>{liveDataError}</p>
-                    {getTradingViewLink(form.assetName) && (
+                    <div className="flex flex-col gap-1">
+                      {getTradingViewLink(form.assetName) && (
+                        <a
+                          href={getTradingViewLink(form.assetName)!}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-blue-400 hover:text-blue-300 underline underline-offset-2"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          Preis auf TradingView
+                        </a>
+                      )}
                       <a
-                        href={getTradingViewLink(form.assetName)!}
+                        href="https://kiyotaka.ai"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 text-blue-400 hover:text-blue-300 underline underline-offset-2"
                       >
                         <ExternalLink className="h-3 w-3" />
-                        TradingView Chart öffnen
+                        OI, Funding &amp; CVD auf Kiyotaka
                       </a>
-                    )}
+                    </div>
                   </AlertDescription>
                 </Alert>
 
