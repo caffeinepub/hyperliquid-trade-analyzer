@@ -3,51 +3,67 @@ export interface HyperliquidLiveData {
   oiDirection: "rising" | "neutral" | "falling";
   fundingLevel: "strongPositive" | "neutral" | "strongNegative";
   futureCVD: "bullish" | "neutral" | "bearish";
-  rawFunding: number; // per 8h as decimal, e.g. 0.0001 = 0.01% per 8h
+  rawFunding: number;
   rawOI: number;
-  cvdDelta: number; // raw buy vol - sell vol
+  cvdDelta: number;
 }
 
 /**
- * Alias map: maps user-friendly names to the exact coin name used by Hyperliquid API.
- * Add entries here whenever an asset has a different name in the UI vs. the API.
+ * Assets known to NOT be available as Hyperliquid perpetuals.
+ * Shown with a clear "not available" message instead of a confusing error.
  */
-const ASSET_ALIASES: Record<string, string> = {
+export const ASSETS_NOT_ON_HL_PERPS = new Set([
+  "SILVER",
+  "GOLD",
+  "BRENT",
+  "OIL",
+  "COPPER",
+  "XAG",
+  "XAU",
+  "XCU",
+  "SILBER",
+  "KUPFER",
+  "BRENTOIL",
+  "CRUDE",
+  "WTI",
+]);
+
+export const ASSET_ALIASES: Record<string, string> = {
   BRENTOIL: "BRENT",
   BRENTOIL_USDC: "BRENT",
   BRENT_OIL: "BRENT",
   CRUDE: "BRENT",
   WTI: "OIL",
-  GOLD: "XAU",
-  SILVER: "XAG",
-  SILBER: "XAG",
-  COPPER: "XCU",
-  KUPFER: "XCU",
+  GOLD: "GOLD",
+  XAU: "GOLD",
+  SILVER: "SILVER",
+  XAG: "SILVER",
+  SILBER: "SILVER",
+  COPPER: "COPPER",
+  XCU: "COPPER",
+  KUPFER: "COPPER",
 };
 
-/**
- * Extracts the base coin name from user input like "BTC/USDC", "BRENTOIL/USDC", "XAG", etc.
- * Also resolves aliases to their canonical Hyperliquid API names.
- */
 function extractCoinName(input: string): string {
   const raw = input.split("/")[0].split("-")[0].trim().toUpperCase();
   return ASSET_ALIASES[raw] ?? raw;
 }
 
-/**
- * Fetches live data for a given coin from the Hyperliquid public API.
- * Makes two parallel requests:
- * 1. metaAndAssetCtxs  – price, open interest, funding rate
- * 2. recentTrades      – for CVD (Cumulative Volume Delta) calculation
- *
- * Note: OI direction is derived from funding rate as a proxy since we have no
- * historical OI snapshots available client-side.
- */
 export async function fetchHyperliquidLiveData(
   coin: string,
 ): Promise<HyperliquidLiveData> {
   const coinName = extractCoinName(coin);
+  const originalInput = coin.split("/")[0].split("-")[0].trim().toUpperCase();
   const BASE_URL = "https://api.hyperliquid.xyz/info";
+
+  if (
+    ASSETS_NOT_ON_HL_PERPS.has(coinName) ||
+    ASSETS_NOT_ON_HL_PERPS.has(originalInput)
+  ) {
+    throw new Error(
+      `"${originalInput}" ist als Perpetual nicht auf Hyperliquid verfügbar. Bitte Preis und Werte manuell eingeben (z.B. von TradingView).`,
+    );
+  }
 
   try {
     const [metaRes, tradesRes] = await Promise.all([
@@ -68,10 +84,6 @@ export async function fetchHyperliquidLiveData(
     }
 
     const metaData = await metaRes.json();
-
-    // metaAndAssetCtxs returns [meta, assetCtxs]
-    // meta.universe is Array<{ name: string; szDecimals: number; ... }>
-    // assetCtxs is Array<{ markPx: string; openInterest: string; funding: string; ... }>
     const [meta, assetCtxs] = metaData as [
       { universe: Array<{ name: string; szDecimals: number }> },
       Array<{ markPx: string; openInterest: string; funding: string }>,
@@ -82,29 +94,18 @@ export async function fetchHyperliquidLiveData(
     );
 
     if (coinIndex === -1) {
-      // Build a helpful suggestion showing the resolved name if it differs from input
-      const originalInput = coin
-        .split("/")[0]
-        .split("-")[0]
-        .trim()
-        .toUpperCase();
       const resolvedInfo =
         originalInput !== coinName ? ` (versucht als "${coinName}")` : "";
       throw new Error(
-        `Asset "${originalInput}"${resolvedInfo} nicht auf Hyperliquid gefunden. Bitte Namen prüfen (z.B. BTC, ETH, XAG, BRENT, OIL, XAU).`,
+        `Asset "${originalInput}"${resolvedInfo} nicht auf Hyperliquid gefunden. Bitte Namen prüfen (z.B. BTC, ETH, SOL, HYPE).`,
       );
     }
 
     const assetCtx = assetCtxs[coinIndex];
     const price = Number.parseFloat(assetCtx.markPx);
     const rawOI = Number.parseFloat(assetCtx.openInterest);
-    // funding is per 8h as a decimal (e.g. 0.0001 = 0.01% per 8h)
     const rawFunding = Number.parseFloat(assetCtx.funding);
 
-    // --- OI Direction ---
-    // We use funding rate as a proxy for OI direction since no historical OI baseline
-    // is available. Positive funding → longs dominant → OI effectively "rising".
-    // Threshold: 0.0005 per 8h (= 0.05% per 8h = significant imbalance)
     let oiDirection: "rising" | "neutral" | "falling";
     if (rawFunding > 0.0005) {
       oiDirection = "rising";
@@ -114,8 +115,6 @@ export async function fetchHyperliquidLiveData(
       oiDirection = "neutral";
     }
 
-    // --- Funding Level ---
-    // Same thresholds: > 0.0005 per 8h = strongly positive (longs paying heavily)
     let fundingLevel: "strongPositive" | "neutral" | "strongNegative";
     if (rawFunding > 0.0005) {
       fundingLevel = "strongPositive";
@@ -125,7 +124,6 @@ export async function fetchHyperliquidLiveData(
       fundingLevel = "neutral";
     }
 
-    // --- Futures CVD from recent trades ---
     let futureCVD: "bullish" | "neutral" | "bearish" = "neutral";
     let cvdDelta = 0;
 
@@ -139,21 +137,16 @@ export async function fetchHyperliquidLiveData(
 
       let buyVolume = 0;
       let sellVolume = 0;
-
       for (const trade of trades) {
         const volume =
           Number.parseFloat(trade.sz) * Number.parseFloat(trade.px);
-        if (trade.side === "B") {
-          buyVolume += volume;
-        } else {
-          sellVolume += volume;
-        }
+        if (trade.side === "B") buyVolume += volume;
+        else sellVolume += volume;
       }
 
       const totalVolume = buyVolume + sellVolume;
       cvdDelta = buyVolume - sellVolume;
 
-      // Neutral if |delta| < 5% of total volume
       if (totalVolume === 0 || Math.abs(cvdDelta) < totalVolume * 0.05) {
         futureCVD = "neutral";
       } else if (cvdDelta > 0) {
@@ -162,7 +155,6 @@ export async function fetchHyperliquidLiveData(
         futureCVD = "bearish";
       }
     }
-    // If trades request failed, CVD stays neutral — not a hard error
 
     return {
       price,
@@ -177,6 +169,7 @@ export async function fetchHyperliquidLiveData(
     if (
       error instanceof Error &&
       (error.message.includes("nicht auf Hyperliquid") ||
+        error.message.includes("nicht verfügbar") ||
         error.message.includes("Metadaten-Fehler"))
     ) {
       throw error;

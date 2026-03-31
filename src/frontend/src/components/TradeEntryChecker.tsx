@@ -19,6 +19,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  ASSETS_NOT_ON_HL_PERPS,
+  ASSET_ALIASES,
   type HyperliquidLiveData,
   fetchHyperliquidLiveData,
 } from "@/lib/hyperliquidApi";
@@ -148,13 +150,52 @@ export default function TradeEntryChecker() {
 
   const resultsRef = useRef<HTMLDivElement>(null);
 
+  const isManualOnlyAsset = (name: string): boolean => {
+    const raw = name.split("/")[0].split("-")[0].trim().toUpperCase();
+    const resolved = ASSET_ALIASES[raw] ?? raw;
+    return (
+      ASSETS_NOT_ON_HL_PERPS.has(raw) || ASSETS_NOT_ON_HL_PERPS.has(resolved)
+    );
+  };
+
+  const TV_LINKS: Record<string, string> = {
+    SILVER: "https://www.tradingview.com/chart/?symbol=XAGUSD",
+    XAG: "https://www.tradingview.com/chart/?symbol=XAGUSD",
+    SILBER: "https://www.tradingview.com/chart/?symbol=XAGUSD",
+    GOLD: "https://www.tradingview.com/chart/?symbol=XAUUSD",
+    XAU: "https://www.tradingview.com/chart/?symbol=XAUUSD",
+    BRENT: "https://www.tradingview.com/chart/?symbol=UKOIL",
+    BRENTOIL: "https://www.tradingview.com/chart/?symbol=UKOIL",
+    OIL: "https://www.tradingview.com/chart/?symbol=USOIL",
+    WTI: "https://www.tradingview.com/chart/?symbol=USOIL",
+    CRUDE: "https://www.tradingview.com/chart/?symbol=USOIL",
+    COPPER: "https://www.tradingview.com/chart/?symbol=COPPER",
+    XCU: "https://www.tradingview.com/chart/?symbol=COPPER",
+    KUPFER: "https://www.tradingview.com/chart/?symbol=COPPER",
+  };
+
+  const getTradingViewLink = (assetName: string): string | null => {
+    const raw = assetName.split("/")[0].split("-")[0].trim().toUpperCase();
+    return TV_LINKS[raw] ?? null;
+  };
+
   const handleChange = (field: keyof FormValues, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     // Reset live data when asset changes
     if (field === "assetName") {
-      setLiveDataStatus("idle");
+      const trimmed = value.trim();
+      const manualOnly = trimmed !== "" && isManualOnlyAsset(trimmed);
       setLiveDataRaw(null);
-      setLiveDataError("");
+      if (manualOnly) {
+        const displayName = trimmed.toUpperCase();
+        setLiveDataError(
+          `"${displayName}" ist als Perpetual nicht auf Hyperliquid verfügbar. Bitte Preis und Werte manuell eingeben (z.B. von TradingView).`,
+        );
+        setLiveDataStatus("error");
+      } else {
+        setLiveDataStatus("idle");
+        setLiveDataError("");
+      }
       setForm((prev) => ({
         ...prev,
         assetName: value,
@@ -348,7 +389,7 @@ export default function TradeEntryChecker() {
               <Input
                 id="assetName"
                 data-ocid="checker.assetName.input"
-                placeholder="z.B. BTC, XAG, BRENTOIL, ETH"
+                placeholder="z.B. BTC, SILVER, BRENTOIL, ETH"
                 value={form.assetName}
                 onChange={(e) => handleChange("assetName", e.target.value)}
                 className={errors.assetName ? "border-red-500" : ""}
@@ -589,10 +630,21 @@ export default function TradeEntryChecker() {
                 className="space-y-3"
                 data-ocid="checker.live_data.error_state"
               >
-                <Alert className="border-red-500/30 bg-red-500/10">
-                  <AlertTriangle className="h-4 w-4 text-red-400" />
-                  <AlertDescription className="text-xs text-red-300">
-                    {liveDataError}
+                <Alert className="border-amber-500/30 bg-amber-500/10">
+                  <AlertTriangle className="h-4 w-4 text-amber-400" />
+                  <AlertDescription className="text-xs text-amber-300 space-y-2">
+                    <p>{liveDataError}</p>
+                    {getTradingViewLink(form.assetName) && (
+                      <a
+                        href={getTradingViewLink(form.assetName)!}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-blue-400 hover:text-blue-300 underline underline-offset-2"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        TradingView Chart öffnen
+                      </a>
+                    )}
                   </AlertDescription>
                 </Alert>
 
@@ -676,6 +728,26 @@ export default function TradeEntryChecker() {
                         <SelectItem value="strongNegative">
                           🟢 Stark negativ
                         </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {/* Manual CVD */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Futures CVD</Label>
+                    <Select
+                      value={form.futureCVD}
+                      onValueChange={(v) => handleChange("futureCVD", v)}
+                    >
+                      <SelectTrigger
+                        className="h-8 text-xs"
+                        data-ocid="checker.futureCVD.select"
+                      >
+                        <SelectValue placeholder="Wählen..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="bullish">🟢 Bullish</SelectItem>
+                        <SelectItem value="neutral">⚪ Neutral</SelectItem>
+                        <SelectItem value="bearish">🔴 Bearish</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
