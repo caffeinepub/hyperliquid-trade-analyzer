@@ -32,10 +32,10 @@ export function isKnownUnavailable(coin: string): boolean {
  */
 export const ASSET_ALIASES: Record<string, string[]> = {
   // Brent Oil
-  BRENTOIL: ["xyz:BRENT", "BRENT", "kBRENT"],
-  BRENTOIL_USDC: ["xyz:BRENT", "BRENT", "kBRENT"],
-  BRENT_OIL: ["xyz:BRENT", "BRENT", "kBRENT"],
-  BRENT: ["xyz:BRENT", "BRENT", "kBRENT"],
+  BRENTOIL: ["xyz:BRENTOIL", "xyz:BRENT", "BRENT", "kBRENT"],
+  BRENTOIL_USDC: ["xyz:BRENTOIL", "xyz:BRENT", "BRENT", "kBRENT"],
+  BRENT_OIL: ["xyz:BRENTOIL", "xyz:BRENT", "BRENT", "kBRENT"],
+  BRENT: ["xyz:BRENTOIL", "xyz:BRENT", "BRENT", "kBRENT"],
   // WTI Oil
   CRUDE: ["xyz:OIL", "OIL", "kOIL"],
   WTI: ["xyz:OIL", "OIL", "kOIL"],
